@@ -15,7 +15,7 @@ export default function TotalKillsChart({ killsOverTime, startDate, endDate, cha
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Total Kills Over Time</CardTitle>
+        <CardTitle>Total Kills</CardTitle>
         <CardDescription>
           Showing total kills for all characters in selected regions
         </CardDescription>
@@ -29,7 +29,7 @@ export default function TotalKillsChart({ killsOverTime, startDate, endDate, cha
                 top: 10,
                 right: 30,
                 left: 0,
-                bottom: 0,
+                bottom: 10,
               }}
             >
               <CartesianGrid strokeDasharray="3 3" />

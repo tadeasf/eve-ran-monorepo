@@ -2,7 +2,7 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } fro
 import { TrendingUp } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart"
-import { formatISK } from '../../lib/utils'
+// import { formatISK } from '../../lib/utils'
 import { ChartConfig } from '../../lib/types'
 
 interface TotalIskChartProps {
@@ -16,7 +16,7 @@ export default function TotalIskChart({ iskDestroyedOverTime, startDate, endDate
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Total ISK Destroyed Over Time</CardTitle>
+        <CardTitle>Total ISK Destroyed</CardTitle>
         <CardDescription>
           Showing total ISK destroyed for all characters in selected regions
         </CardDescription>
@@ -38,7 +38,7 @@ export default function TotalIskChart({ iskDestroyedOverTime, startDate, endDate
                 dataKey="date"
                 tickFormatter={(value) => new Date(value).toLocaleDateString()}
               />
-              <YAxis tickFormatter={(value) => formatISK(value)} />
+              <YAxis  />
               <ChartTooltip
                 content={<ChartTooltipContent indicator="line" />}
               />
