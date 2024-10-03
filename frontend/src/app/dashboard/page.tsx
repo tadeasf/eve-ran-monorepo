@@ -2,16 +2,14 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useQuery } from 'react-query'
-import { TrendingUp } from "lucide-react"
-import { Area, AreaChart, CartesianGrid, XAxis, ResponsiveContainer } from "recharts"
 import CharacterTable from '../components/CharacterTable'
 import FilterControls from '../components/FilterControls'
-import { Region, CharacterStats, Character, KillmailData } from '../../lib/types'
+import TotalKillsChart from '../components/TotalKillsChart'
+import TotalIskChart from '../components/TotalIskChart'
+import { Region, CharacterStats, Character, KillmailData, ChartConfig } from '../../lib/types'
 import { formatISK } from '../../lib/utils'
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert"
 import { Skeleton } from "../components/ui/skeleton"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card"
-import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart"
 import { Progress } from "../components/ui/progress"
 
 const fetchRegions = async (): Promise<Region[]> => {
@@ -39,6 +37,7 @@ export default function Dashboard() {
   const [endDate, setEndDate] = useState<string>(getTodayDate())
   const [isLoading, setIsLoading] = useState(false)
   const [killsOverTime, setKillsOverTime] = useState<{ date: string; kills: number }[]>([])
+  const [iskDestroyedOverTime, setIskDestroyedOverTime] = useState<{ date: string; isk: number }[]>([])
 
   const { data: regions, isLoading: isRegionsLoading, error: regionsError } = useQuery<Region[]>('regions', fetchRegions)
 
@@ -93,10 +92,12 @@ export default function Dashboard() {
       })
 
       const killsPerDay: { [date: string]: number } = {}
+      const iskPerDay: { [date: string]: number } = {}
       combinedStats.forEach((character) => {
         character.kills.forEach((kill) => {
           const date = kill.killmail_time.split('T')[0]
           killsPerDay[date] = (killsPerDay[date] || 0) + 1
+          iskPerDay[date] = (iskPerDay[date] || 0) + kill.total_value
         })
       })
 
@@ -104,7 +105,12 @@ export default function Dashboard() {
         .map(([date, kills]) => ({ date, kills }))
         .sort((a, b) => a.date.localeCompare(b.date))
 
+      const sortedIskDestroyedOverTime = Object.entries(iskPerDay)
+        .map(([date, isk]) => ({ date, isk }))
+        .sort((a, b) => a.date.localeCompare(b.date))
+
       setKillsOverTime(sortedKillsOverTime)
+      setIskDestroyedOverTime(sortedIskDestroyedOverTime)
       setCharacters(combinedStats)
     } catch (error) {
       console.error('Failed to fetch character stats:', error)
@@ -123,12 +129,16 @@ export default function Dashboard() {
     return <div>Error loading regions: {(regionsError as Error).message}</div>
   }
 
-  const chartConfig = {
+  const chartConfig: ChartConfig = {
     kills: {
       label: "Total Kills",
       color: "hsl(var(--chart-1))",
     },
-  } satisfies ChartConfig
+    isk: {
+      label: "Total ISK Destroyed",
+      color: "hsl(var(--chart-2))",
+    },
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -160,56 +170,20 @@ export default function Dashboard() {
               <div className="mb-8">
                 <CharacterTable characters={characters} />
               </div>
-              <Card className="mb-8">
-                <CardHeader>
-                  <CardTitle>Total Kills Over Time</CardTitle>
-                  <CardDescription>
-                    Showing total kills for all characters in selected regions
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ChartContainer config={chartConfig}>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <AreaChart
-                        data={killsOverTime}
-                        margin={{
-                          top: 10,
-                          right: 30,
-                          left: 0,
-                          bottom: 0,
-                        }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis
-                          dataKey="date"
-                          tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                        />
-                        <ChartTooltip
-                          content={<ChartTooltipContent indicator="line" />}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="kills"
-                          stroke="#8884d8"
-                          fill="#8884d8"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </ChartContainer>
-                </CardContent>
-                <CardFooter>
-                  <div className="flex w-full items-start gap-2 text-sm">
-                    <div className="grid gap-2">
-                      <div className="flex items-center gap-2 font-medium leading-none">
-                        Showing kills trend <TrendingUp className="h-4 w-4" />
-                      </div>
-                      <div className="flex items-center gap-2 leading-none text-muted-foreground">
-                        {startDate} - {endDate}
-                      </div>
-                    </div>
-                  </div>
-                </CardFooter>
-              </Card>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                <TotalKillsChart
+                  killsOverTime={killsOverTime}
+                  startDate={startDate}
+                  endDate={endDate}
+                  chartConfig={chartConfig}
+                />
+                <TotalIskChart
+                  iskDestroyedOverTime={iskDestroyedOverTime}
+                  startDate={startDate}
+                  endDate={endDate}
+                  chartConfig={chartConfig}
+                />
+              </div>
             </>
           )}
         </>

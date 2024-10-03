@@ -70,3 +70,10 @@ export interface KillmailData {
 export interface RegionKillsResponse {
   data: KillmailData[]
 }
+
+export interface ChartConfig {
+  [key: string]: {
+    label: string;
+    color: string;
+  };
+}
