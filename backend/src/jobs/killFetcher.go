@@ -3,6 +3,7 @@ package jobs
 import (
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -99,65 +100,42 @@ func FetchKillsForAllCharacters() {
 }
 
 func FetchKillsForCharacter(characterID int64) (int, error) {
-	totalNewKills := 0
+	totalNewKills := int32(0)
 	page := 1
+	batchSize := 100
+	maxConcurrent := 10
 
 	for {
 		zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
 		if err != nil {
-			return totalNewKills, err
+			return int(totalNewKills), err
 		}
 
 		if len(zkillKills) == 0 {
 			break
 		}
 
-		newKills := 0
-		for _, zkillKill := range zkillKills {
-			exists, err := queries.KillExists(zkillKill.KillmailID)
-			if err != nil {
-				log.Printf("Error checking if kill %d exists: %v", zkillKill.KillmailID, err)
-				continue
+		sem := make(chan bool, maxConcurrent)
+		var wg sync.WaitGroup
+
+		for i := 0; i < len(zkillKills); i += batchSize {
+			end := i + batchSize
+			if end > len(zkillKills) {
+				end = len(zkillKills)
 			}
 
-			if !exists {
-				esiKill, err := services.FetchKillmailFromESI(zkillKill.KillmailID, zkillKill.ZKB.Hash)
-				if err != nil {
-					log.Printf("Error fetching killmail %d from ESI: %v", zkillKill.KillmailID, err)
-					continue
-				}
+			wg.Add(1)
+			sem <- true
+			go func(batch []models.ZKillKill) {
+				defer wg.Done()
+				defer func() { <-sem }()
 
-				kill := models.Kill{
-					KillmailID:     zkillKill.KillmailID,
-					CharacterID:    characterID,
-					KillTime:       esiKill.KillTime,
-					SolarSystemID:  esiKill.SolarSystemID,
-					LocationID:     zkillKill.ZKB.LocationID,
-					Hash:           zkillKill.ZKB.Hash,
-					FittedValue:    zkillKill.ZKB.FittedValue,
-					DroppedValue:   zkillKill.ZKB.DroppedValue,
-					DestroyedValue: zkillKill.ZKB.DestroyedValue,
-					TotalValue:     zkillKill.ZKB.TotalValue,
-					Points:         zkillKill.ZKB.Points,
-					NPC:            zkillKill.ZKB.NPC,
-					Solo:           zkillKill.ZKB.Solo,
-					Awox:           zkillKill.ZKB.Awox,
-					Victim:         esiKill.Victim,
-					Attackers:      esiKill.Attackers,
-				}
-
-				err = queries.UpsertKill(&kill)
-				if err != nil {
-					log.Printf("Error upserting kill %d: %v", zkillKill.KillmailID, err)
-					continue
-				}
-
-				newKills++
-			}
+				processBatch(batch, characterID, &totalNewKills)
+			}(zkillKills[i:end])
 		}
 
-		totalNewKills += newKills
-		log.Printf("Inserted %d new kills for character %d on page %d", newKills, characterID, page)
+		wg.Wait()
+		log.Printf("Processed %d new kills for character %d on page %d", atomic.LoadInt32(&totalNewKills), characterID, page)
 
 		if len(zkillKills) < 200 {
 			log.Printf("Less than 200 new kills on page %d for character %d, stopping", page, characterID)
@@ -167,7 +145,55 @@ func FetchKillsForCharacter(characterID int64) (int, error) {
 		page++
 	}
 
-	return totalNewKills, nil
+	return int(totalNewKills), nil
+}
+
+func processBatch(batch []models.ZKillKill, characterID int64, newKills *int32) {
+	var kills []models.Kill
+	for _, zkillKill := range batch {
+		exists, err := queries.KillExists(zkillKill.KillmailID)
+		if err != nil {
+			log.Printf("Error checking if kill %d exists: %v", zkillKill.KillmailID, err)
+			continue
+		}
+
+		if !exists {
+			esiKill, err := services.FetchKillmailFromESI(zkillKill.KillmailID, zkillKill.ZKB.Hash)
+			if err != nil {
+				log.Printf("Error fetching killmail %d from ESI: %v", zkillKill.KillmailID, err)
+				continue
+			}
+
+			kill := models.Kill{
+				KillmailID:     zkillKill.KillmailID,
+				CharacterID:    characterID,
+				KillTime:       esiKill.KillTime,
+				SolarSystemID:  esiKill.SolarSystemID,
+				LocationID:     zkillKill.ZKB.LocationID,
+				Hash:           zkillKill.ZKB.Hash,
+				FittedValue:    zkillKill.ZKB.FittedValue,
+				DroppedValue:   zkillKill.ZKB.DroppedValue,
+				DestroyedValue: zkillKill.ZKB.DestroyedValue,
+				TotalValue:     zkillKill.ZKB.TotalValue,
+				Points:         zkillKill.ZKB.Points,
+				NPC:            zkillKill.ZKB.NPC,
+				Solo:           zkillKill.ZKB.Solo,
+				Awox:           zkillKill.ZKB.Awox,
+				Victim:         esiKill.Victim,
+				Attackers:      esiKill.Attackers,
+			}
+
+			kills = append(kills, kill)
+			atomic.AddInt32(newKills, 1)
+		}
+	}
+
+	if len(kills) > 0 {
+		err := queries.BulkUpsertKills(kills)
+		if err != nil {
+			log.Printf("Error bulk upserting kills: %v", err)
+		}
+	}
 }
 
 func fetchAllKillsForCharacter(characterID int64) {
