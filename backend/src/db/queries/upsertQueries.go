@@ -85,8 +85,16 @@ func UpsertESIItem(item *models.ESIItem) error {
 }
 
 func BulkUpsertKills(kills []models.Kill) error {
-	return db.DB.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "killmail_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"character_id", "kill_time", "solar_system_id", "location_id", "hash", "fitted_value", "dropped_value", "destroyed_value", "total_value", "points", "npc", "solo", "awox", "victim_alliance_id", "victim_character_id", "victim_corporation_id", "victim_faction_id", "victim_damage_taken", "victim_ship_type_id", "victim_items", "victim_position", "attackers"}),
-	}).CreateInBatches(kills, 100).Error
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		for _, kill := range kills {
+			result := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "killmail_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"character_id", "kill_time", "solar_system_id", "location_id", "hash", "fitted_value", "dropped_value", "destroyed_value", "total_value", "points", "npc", "solo", "awox", "victim", "attackers"}),
+			}).Create(&kill)
+			if result.Error != nil {
+				return result.Error
+			}
+		}
+		return nil
+	})
 }

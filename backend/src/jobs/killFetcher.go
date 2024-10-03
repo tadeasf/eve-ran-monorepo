@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	killFetchQueue       = make(chan killFetchJob, 100)
+	killFetchQueue       = make(chan killFetchJob, 1000) // Increase the queue size
 	backoffMutex         sync.Mutex
 	lastBackoffTime      time.Time
 	workerRunning        bool
@@ -28,6 +28,11 @@ type killFetchJob struct {
 	lastKillTime time.Time
 	isInitial    bool
 }
+
+const (
+	maxRetries = 3
+	retryDelay = 5 * time.Second
+)
 
 func StartKillFetcherWorker() {
 	workerMutex.Lock()
@@ -101,14 +106,18 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 
 		newKills, allExist, err := processKillsPage(characterID, zkillKills)
 		if err != nil {
-			return totalNewKills, fmt.Errorf("error processing kills page: %v", err)
+			log.Printf("Error processing kills page for character %d: %v", characterID, err)
+			// Continue to the next page instead of stopping
+			page++
+			time.Sleep(pageStaggerInterval)
+			continue
 		}
 
 		totalNewKills += newKills
 		log.Printf("Processed %d new kills on page %d for character %d", newKills, page, characterID)
 
 		if allExist {
-			log.Printf("All kills on page %d already exist, stopping fetch", page)
+			log.Printf("All kills on page %d already exist for character %d, stopping fetch", page, characterID)
 			break
 		}
 
@@ -128,7 +137,8 @@ func processKillsPage(characterID int64, zkillKills []models.ZKillKill) (int, bo
 	for _, zkillKill := range zkillKills {
 		existingKill, err := queries.GetKillByKillmailID(zkillKill.KillmailID)
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return newKills, false, fmt.Errorf("error checking existing kill %d: %v", zkillKill.KillmailID, err)
+			log.Printf("Error checking existing kill %d: %v", zkillKill.KillmailID, err)
+			continue
 		}
 
 		if existingKill != nil {
@@ -138,9 +148,9 @@ func processKillsPage(characterID int64, zkillKills []models.ZKillKill) (int, bo
 
 		allExist = false
 
-		esiKill, err := fetchKillmailWithBackoff(zkillKill.KillmailID, zkillKill.ZKB.Hash)
+		esiKill, err := fetchKillmailWithRetry(zkillKill.KillmailID, zkillKill.ZKB.Hash)
 		if err != nil {
-			log.Printf("Error fetching killmail %d from ESI: %v", zkillKill.KillmailID, err)
+			log.Printf("Error fetching killmail %d from ESI after retries: %v", zkillKill.KillmailID, err)
 			continue
 		}
 
@@ -220,6 +230,28 @@ func fetchKillmailWithBackoff(killmailID int64, hash string) (*models.Kill, erro
 		return nil, err
 	}
 	return esiKill, nil
+}
+
+func fetchKillmailWithRetry(killmailID int64, hash string) (*models.Kill, error) {
+	var esiKill *models.Kill
+	var err error
+
+	for i := 0; i < maxRetries; i++ {
+		esiKill, err = services.FetchKillmailFromESI(killmailID, hash)
+		if err == nil {
+			return esiKill, nil
+		}
+
+		if services.IsESIErrorLimit(err) {
+			log.Printf("ESI error limit reached, backing off for 1 minute")
+			time.Sleep(1 * time.Minute)
+		} else {
+			log.Printf("Error fetching killmail %d from ESI (attempt %d/%d): %v", killmailID, i+1, maxRetries, err)
+			time.Sleep(retryDelay)
+		}
+	}
+
+	return nil, fmt.Errorf("failed to fetch killmail after %d attempts: %v", maxRetries, err)
 }
 
 // Add these functions at the end of the file
