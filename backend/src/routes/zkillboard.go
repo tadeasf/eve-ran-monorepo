@@ -92,6 +92,9 @@ func AddCharacter(c *gin.Context) {
 	go func() {
 		jobs.QueueCharacterForKillFetch(character.ID)
 	}()
+
+	// Trigger kill fetch for the new character
+	go jobs.FetchAllKillsForCharacter(character.ID)
 }
 
 // RemoveCharacter removes a character

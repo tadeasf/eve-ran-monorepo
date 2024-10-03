@@ -71,7 +71,14 @@ func FetchKillsForAllCharacters() {
 }
 
 func FetchAllKillsForCharacter(characterID int64) {
-	QueueCharacterForKillFetch(characterID)
+	log.Printf("Starting to fetch all kills for character %d", characterID)
+	lastKillTime := time.Time{} // This will fetch all kills
+	newKills, err := FetchNewKillsForCharacter(characterID, lastKillTime)
+	if err != nil {
+		log.Printf("Error fetching kills for character %d: %v", characterID, err)
+	} else {
+		log.Printf("Fetched %d new kills for character %d", newKills, characterID)
+	}
 }
 
 func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, error) {
