@@ -56,23 +56,39 @@ func fetchAndUpdateConstellations() {
 		existingMap[constellation.ConstellationID] = true
 	}
 
-	batchSize := 100
-	var constellationsBatch []*models.Constellation
+	constellationsChan := make(chan *models.Constellation, len(ids))
+	var wg sync.WaitGroup
 
 	for _, id := range ids {
 		if !existingMap[id] {
-			constellation := fetchConstellation(id)
-			if constellation != nil {
-				constellationsBatch = append(constellationsBatch, constellation)
-			}
-
-			if len(constellationsBatch) >= batchSize {
-				err := queries.BatchUpsertConstellations(constellationsBatch)
-				if err != nil {
-					log.Printf("Error batch upserting constellations: %v", err)
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				constellation := fetchConstellation(id)
+				if constellation != nil {
+					constellationsChan <- constellation
 				}
-				constellationsBatch = []*models.Constellation{}
+			}(id)
+		}
+	}
+
+	go func() {
+		wg.Wait()
+		close(constellationsChan)
+	}()
+
+	batchSize := 250
+	var constellationsBatch []*models.Constellation
+
+	for constellation := range constellationsChan {
+		constellationsBatch = append(constellationsBatch, constellation)
+
+		if len(constellationsBatch) >= batchSize {
+			err := queries.BatchUpsertConstellations(constellationsBatch)
+			if err != nil {
+				log.Printf("Error batch upserting constellations: %v", err)
 			}
+			constellationsBatch = []*models.Constellation{}
 		}
 	}
 
@@ -118,23 +134,39 @@ func fetchAndUpdateSystems() {
 		existingMap[system.SystemID] = true
 	}
 
-	batchSize := 100
-	var systemsBatch []*models.System
+	systemsChan := make(chan *models.System, len(ids))
+	var wg sync.WaitGroup
 
 	for _, id := range ids {
 		if !existingMap[id] {
-			system := fetchSystem(id)
-			if system != nil {
-				systemsBatch = append(systemsBatch, system)
-			}
-
-			if len(systemsBatch) >= batchSize {
-				err := queries.BatchUpsertSystems(systemsBatch)
-				if err != nil {
-					log.Printf("Error batch upserting systems: %v", err)
+			wg.Add(1)
+			go func(id int) {
+				defer wg.Done()
+				system := fetchSystem(id)
+				if system != nil {
+					systemsChan <- system
 				}
-				systemsBatch = []*models.System{}
+			}(id)
+		}
+	}
+
+	go func() {
+		wg.Wait()
+		close(systemsChan)
+	}()
+
+	batchSize := 250
+	var systemsBatch []*models.System
+
+	for system := range systemsChan {
+		systemsBatch = append(systemsBatch, system)
+
+		if len(systemsBatch) >= batchSize {
+			err := queries.BatchUpsertSystems(systemsBatch)
+			if err != nil {
+				log.Printf("Error batch upserting systems: %v", err)
 			}
+			systemsBatch = []*models.System{}
 		}
 	}
 
@@ -180,7 +212,7 @@ func fetchAndUpdateItems() {
 	}
 
 	var wg sync.WaitGroup
-	semaphore := make(chan struct{}, 20) // Limit to 20 concurrent requests
+	semaphore := make(chan struct{}, 50)
 	itemIDsChan := make(chan int, 100)
 
 	// Start worker goroutines
