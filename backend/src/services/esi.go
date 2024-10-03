@@ -1,16 +1,16 @@
 package services
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"strconv"
 
 	"github.com/tadeasf/eve-ran/src/db/models"
 	"golang.org/x/time/rate"
@@ -383,78 +383,70 @@ func FetchAllSystems(concurrency int) ([]*models.System, error) {
 }
 
 func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
-	maxRetries := 5
-	baseDelay := time.Second
-
-	var lastErr error
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		kill, err := fetchKillmailFromESIWithRetry(killmailID, hash)
-		if err == nil {
-			return kill, nil
+	for {
+		if !esiErrorManager.CanMakeRequest() {
+			log.Println("ESI error limit reached, waiting for reset")
+			esiErrorManager.WaitForReset()
+			continue
 		}
-		lastErr = err
 
-		if attempt < maxRetries-1 { // Don't sleep after the last attempt
-			sleepTime := time.Duration(math.Pow(2, float64(attempt))) * baseDelay
-			log.Printf("Attempt %d failed, retrying in %v: %v", attempt+1, sleepTime, err)
-			time.Sleep(sleepTime)
+		url := fmt.Sprintf("https://esi.evetech.net/latest/killmails/%d/%s/?datasource=tranquility", killmailID, hash)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, err
 		}
+		req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran")
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Cache-Control", "no-cache")
+
+		resp, err := esiClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		// Update error limits based on headers
+		if remaining, err := strconv.Atoi(resp.Header.Get("X-Esi-Error-Limit-Remain")); err == nil {
+			if reset, err := strconv.Atoi(resp.Header.Get("X-Esi-Error-Limit-Reset")); err == nil {
+				esiErrorManager.UpdateLimits(remaining, reset)
+			}
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("error reading ESI response body: %v", err)
+		}
+
+		if resp.StatusCode >= 400 {
+			esiErrorManager.DecrementErrorCount()
+			if resp.StatusCode == 420 {
+				log.Println("ESI error limit reached, waiting for reset")
+				esiErrorManager.WaitForReset()
+				continue
+			}
+			return nil, fmt.Errorf("ESI returned non-OK status: %d, body: %s", resp.StatusCode, string(body))
+		}
+
+		var esiKill struct {
+			KillmailID    int64                `json:"killmail_id"`
+			KillmailTime  time.Time            `json:"killmail_time"`
+			SolarSystemID int                  `json:"solar_system_id"`
+			Victim        models.Victim        `json:"victim"`
+			Attackers     models.AttackersJSON `json:"attackers"`
+		}
+		err = json.Unmarshal(body, &esiKill)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshaling killmail: %v", err)
+		}
+
+		return &models.Kill{
+			KillmailID:    esiKill.KillmailID,
+			KillTime:      esiKill.KillmailTime,
+			SolarSystemID: esiKill.SolarSystemID,
+			Victim:        esiKill.Victim,
+			Attackers:     esiKill.Attackers,
+		}, nil
 	}
-
-	return nil, fmt.Errorf("failed to fetch killmail after %d attempts: %v", maxRetries, lastErr)
-}
-
-func fetchKillmailFromESIWithRetry(killmailID int64, hash string) (*models.Kill, error) {
-	if err := esiLimiter.Wait(context.Background()); err != nil {
-		return nil, fmt.Errorf("rate limiter error: %v", err)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	url := fmt.Sprintf("https://esi.evetech.net/latest/killmails/%d/%s/?datasource=tranquility", killmailID, hash)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Cache-Control", "no-cache")
-
-	resp, err := esiClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading ESI response body: %v", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ESI returned non-OK status: %d, body: %s", resp.StatusCode, string(body))
-	}
-
-	var esiKill struct {
-		KillmailID    int64                `json:"killmail_id"`
-		KillmailTime  time.Time            `json:"killmail_time"`
-		SolarSystemID int                  `json:"solar_system_id"`
-		Victim        models.Victim        `json:"victim"`
-		Attackers     models.AttackersJSON `json:"attackers"`
-	}
-	err = json.Unmarshal(body, &esiKill)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshaling killmail: %v", err)
-	}
-
-	return &models.Kill{
-		KillmailID:    esiKill.KillmailID,
-		KillTime:      esiKill.KillmailTime,
-		SolarSystemID: esiKill.SolarSystemID,
-		Victim:        esiKill.Victim,
-		Attackers:     esiKill.Attackers,
-	}, nil
 }
 
 func IsESITimeout(err error) bool {
