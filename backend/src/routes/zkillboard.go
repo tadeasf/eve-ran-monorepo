@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,17 +16,8 @@ import (
 	"github.com/tadeasf/eve-ran/src/jobs"
 )
 
-// AddCharacter adds a new character ID
-// @Summary Add a new character ID
-// @Description Add a new character ID to the database and fetch all kills
-// @Tags characters
-// @Accept json
-// @Produce json
-// @Param character body models.Character true "Character ID"
-// @Success 201 {object} models.Character
-// @Failure 400 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /characters [post]
+var addCharacterMutex sync.Mutex
+
 // AddCharacter adds a new character ID
 // @Summary Add a new character ID
 // @Description Add a new character ID to the database and fetch all kills
@@ -38,6 +30,9 @@ import (
 // @Failure 500 {object} models.ErrorResponse
 // @Router /characters [post]
 func AddCharacter(c *gin.Context) {
+	addCharacterMutex.Lock()
+	defer addCharacterMutex.Unlock()
+
 	var character models.Character
 	if err := c.ShouldBindJSON(&character); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -45,7 +40,11 @@ func AddCharacter(c *gin.Context) {
 	}
 
 	existingCharacter, err := db.GetCharacterByID(character.ID)
-	if err == nil && existingCharacter != nil {
+	if err != nil && err != db.ErrRecordNotFound {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing character"})
+		return
+	}
+	if existingCharacter != nil {
 		c.JSON(http.StatusConflict, gin.H{"error": "Character already exists"})
 		return
 	}
@@ -86,7 +85,9 @@ func AddCharacter(c *gin.Context) {
 	// go jobs.FetchAllKillsForCharacter(character.ID)
 
 	// Queue the character for kill fetching
-	jobs.QueueCharacterForKillFetch(character.ID)
+	go func() {
+		jobs.QueueCharacterForKillFetch(character.ID)
+	}()
 }
 
 // RemoveCharacter removes a character

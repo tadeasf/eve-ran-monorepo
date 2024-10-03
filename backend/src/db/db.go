@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+var ErrRecordNotFound = errors.New("record not found")
 
 func InsertCharacter(character *models.Character) error {
 	result := DB.Create(character)
@@ -19,6 +22,9 @@ func GetCharacterByID(id int64) (*models.Character, error) {
 	var character models.Character
 	result := DB.First(&character, id)
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, ErrRecordNotFound
+		}
 		return nil, result.Error
 	}
 	return &character, nil
