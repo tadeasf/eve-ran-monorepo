@@ -65,6 +65,8 @@ func main() {
 	// New data routes
 	r.GET("/characters", routes.GetAllCharacters)
 	r.GET("/kills", routes.GetAllKills)
+	r.GET("/characters/:id/fetch-kills", routes.TriggerKillFetchForCharacter)
+	r.GET("/characters/fetch-kills", routes.TriggerKillFetchForAllCharacters)
 
 	// Add this line to register the GetKillsByRegion route
 	r.GET("/kills/region/:regionID", routes.GetKillsByRegion)
