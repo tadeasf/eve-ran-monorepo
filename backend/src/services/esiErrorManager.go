@@ -11,13 +11,6 @@ type ESIErrorManager struct {
 	resetTime      time.Time
 }
 
-var (
-	esiErrorManager = &ESIErrorManager{
-		errorRemaining: 30,                              // Default to 60, will be updated with actual value from ESI
-		resetTime:      time.Now().Add(1 * time.Minute), // Default to 1 minute, will be updated with actual value from ESI
-	}
-)
-
 func (em *ESIErrorManager) UpdateLimits(remaining int, resetSeconds int) {
 	em.mu.Lock()
 	defer em.mu.Unlock()
@@ -29,7 +22,7 @@ func (em *ESIErrorManager) CanMakeRequest() bool {
 	em.mu.Lock()
 	defer em.mu.Unlock()
 	if time.Now().After(em.resetTime) {
-		// If we've passed the reset time, assume we can make a request
+
 		return true
 	}
 	return em.errorRemaining > 0

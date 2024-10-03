@@ -16,10 +16,10 @@ const esiBaseURL = "https://esi.evetech.net/latest"
 
 var (
 	esiClient = &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: 60 * time.Second,
 		Transport: &http.Transport{
-			MaxIdleConns:        1000,
-			MaxIdleConnsPerHost: 1000,
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 100,
 			IdleConnTimeout:     90 * time.Second,
 		},
 	}
@@ -387,6 +387,9 @@ func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
 
 	resp, err := esiClient.Do(req)
 	if err != nil {
+		if strings.Contains(err.Error(), "timeout") {
+			return nil, fmt.Errorf("ESI timeout: %v", err)
+		}
 		return nil, fmt.Errorf("error making request: %v", err)
 	}
 	defer resp.Body.Close()

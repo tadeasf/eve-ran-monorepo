@@ -15,7 +15,7 @@ import (
 var (
 	killFetchQueue       = make(chan killFetchJob, 1000)
 	failedKillFetchQueue = make(chan killFetchJob, 1000)
-	workerPool           = make(chan struct{}, 10) // Limit to 10 concurrent workers
+	workerPool           = make(chan struct{}, 1)
 	esiErrorLimitMutex   sync.Mutex
 	esiErrorLimitBackoff time.Time
 )
@@ -79,7 +79,7 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 	log.Printf("Starting to fetch new kills for character %d since %v", characterID, lastKillTime)
 	totalNewKills := 0
 	page := 1
-	pageStaggerInterval := 500 * time.Millisecond
+	pageStaggerInterval := 1 * time.Second // Increase delay between pages
 
 	for {
 		log.Printf("Fetching page %d for character %d", page, characterID)
@@ -165,6 +165,7 @@ func processKillsPage(characterID int64, zkillKills []models.ZKillKill) (int, bo
 		}
 
 		newKills = append(newKills, kill)
+		time.Sleep(100 * time.Millisecond) // Add a small delay between ESI requests
 	}
 
 	if len(newKills) > 0 {
@@ -182,7 +183,9 @@ func processKillsPage(characterID int64, zkillKills []models.ZKillKill) (int, bo
 
 func fetchKillmailWithExponentialBackoff(killmailID int64, hash string) (*models.Kill, error) {
 	b := backoff.NewExponentialBackOff()
-	b.MaxElapsedTime = 5 * time.Minute
+	b.InitialInterval = 1 * time.Second
+	b.MaxInterval = 1 * time.Minute
+	b.MaxElapsedTime = 10 * time.Minute
 
 	var esiKill *models.Kill
 	var err error
@@ -192,6 +195,10 @@ func fetchKillmailWithExponentialBackoff(killmailID int64, hash string) (*models
 		if err != nil {
 			if services.IsESIErrorLimit(err) {
 				log.Printf("ESI error limit reached, backing off")
+				return backoff.Permanent(err)
+			}
+			if services.IsESITimeout(err) {
+				log.Printf("ESI timeout, retrying")
 				return err
 			}
 			log.Printf("Error fetching killmail %d from ESI: %v", killmailID, err)
