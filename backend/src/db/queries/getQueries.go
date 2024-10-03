@@ -34,7 +34,7 @@ func GetKillByKillmailID(killmailID int64) (*models.Kill, error) {
 	result := db.DB.Where("killmail_id = ?", killmailID).First(&kill)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, nil // Return nil, nil instead of an error for not found
+			return nil, nil // Return nil, nil instead of the error
 		}
 		return nil, result.Error
 	}

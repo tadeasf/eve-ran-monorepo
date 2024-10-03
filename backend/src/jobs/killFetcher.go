@@ -129,8 +129,16 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 				oldestKillTime = pageOldestKillTime
 			}
 
-			if pageOldestKillTime.Before(lastKillTime) || newKills == 0 {
+			if newKills == 0 {
+				log.Printf("No new kills found for character %d on page %d, stopping fetch", characterID, currentPage)
 				continueFetching = false
+				return
+			}
+
+			if pageOldestKillTime.Before(lastKillTime) {
+				log.Printf("Reached kills older than last known kill for character %d, stopping fetch", characterID)
+				continueFetching = false
+				return
 			}
 		}(page)
 
@@ -246,6 +254,9 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 			if esiKill.KillTime.Before(oldestKillTime) {
 				oldestKillTime = esiKill.KillTime
 			}
+		} else {
+			log.Printf("Kill %d is older than last known kill, stopping batch processing", zkillKill.KillmailID)
+			break
 		}
 	}
 
@@ -255,9 +266,9 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 			log.Printf("Error bulk upserting kills: %v", err)
 			return 0, oldestKillTime, err
 		}
-		log.Printf("Successfully upserted %d kills for character %d", len(kills), characterID)
+		log.Printf("Successfully upserted %d new kills for character %d", len(kills), characterID)
 	} else {
-		log.Printf("No new kills to upsert for character %d", characterID)
+		log.Printf("No new kills found for character %d in this batch", characterID)
 	}
 
 	return newKills, oldestKillTime, nil
