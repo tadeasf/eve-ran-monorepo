@@ -37,6 +37,16 @@ func StartKillFetcherJob() {
 	go killFetcherWorker()
 }
 
+// Add this new function to allow immediate execution
+func TriggerImmediateKillFetch() {
+	if !isJobRunning() {
+		log.Println("Starting immediate kill fetch for all characters")
+		go FetchKillsForAllCharacters()
+	} else {
+		log.Println("Kill fetcher job is already running, skipping immediate fetch")
+	}
+}
+
 func isJobRunning() bool {
 	jobMutex.Lock()
 	defer jobMutex.Unlock()
@@ -93,6 +103,12 @@ func FetchKillsForAllCharacters() {
 	}
 }
 
+const (
+	initialConcurrency = 2
+	maxConcurrency     = 200
+	minConcurrency     = 2
+)
+
 func fetchKillsForCharacter(characterID int64) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -111,11 +127,11 @@ func fetchKillsForCharacter(characterID int64) {
 	page := 1
 	totalNewKills := 0
 
-	const maxConcurrentRequests = 4
-	semaphore := make(chan struct{}, maxConcurrentRequests)
+	concurrency := initialConcurrency
+	semaphore := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
 
-	killChan := make(chan *models.Kill, maxConcurrentRequests)
+	killChan := make(chan *models.Kill, concurrency)
 	done := make(chan bool)
 	stopProcessing := make(chan bool)
 
@@ -133,11 +149,13 @@ func fetchKillsForCharacter(characterID int64) {
 
 outerLoop:
 	for {
-		log.Printf("Fetching page %d for character %d", page, characterID)
+		log.Printf("Fetching page %d for character %d with concurrency %d", page, characterID, concurrency)
 		kills, err := services.FetchKillsFromZKillboard(characterID, page)
 		if err != nil {
 			log.Printf("Error fetching kills for character %d: %v", characterID, err)
-			break
+			concurrency = max(minConcurrency, concurrency/2)
+			semaphore = make(chan struct{}, concurrency)
+			continue
 		}
 
 		if len(kills) == 0 {
@@ -146,6 +164,7 @@ outerLoop:
 		}
 
 		var newKills int32
+		var errors int32
 		for _, kill := range kills {
 			select {
 			case <-stopProcessing:
@@ -160,6 +179,7 @@ outerLoop:
 					esiKill, err := services.FetchKillmailFromESI(k.KillmailID, k.Hash)
 					if err != nil {
 						log.Printf("Error fetching ESI killmail %d: %v", k.KillmailID, err)
+						atomic.AddInt32(&errors, 1)
 						return
 					}
 
@@ -183,6 +203,13 @@ outerLoop:
 
 		log.Printf("Processed %d new kills for character %d on page %d", newKills, characterID, page)
 
+		if errors > 0 {
+			concurrency = max(minConcurrency, concurrency/2)
+		} else {
+			concurrency = min(maxConcurrency, concurrency*2)
+		}
+		semaphore = make(chan struct{}, concurrency)
+
 		if newKills == 0 && !isNewCharacter {
 			log.Printf("No new kills on page %d for character %d, stopping", page, characterID)
 			break
@@ -196,6 +223,20 @@ outerLoop:
 	<-done
 
 	log.Printf("Finished fetching kills for character %d. Total new kills: %d", characterID, totalNewKills)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func FetchAllKillsForCharacter(characterID int64) {

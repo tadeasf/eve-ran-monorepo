@@ -23,11 +23,14 @@ func main() {
 
 	db.InitDB()
 
+	// Run the type fetcher job
+	jobs.FetchAndUpdateTypes()
+
 	// Start the kill fetcher job
 	go jobs.StartKillFetcherJob()
 
-	// Run the type fetcher job
-	go jobs.FetchAndUpdateTypes()
+	// Trigger an immediate kill fetch for all characters
+	go jobs.FetchKillsForAllCharacters()
 
 	r := gin.Default()
 
