@@ -37,6 +37,9 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
       - caddy_config:/config
+      - caddy_certificates:/root/.caddy
+    environment:
+      - ACME_AGREE=true
     depends_on:
       - api
     restart: always
@@ -44,3 +47,4 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+  caddy_certificates:
