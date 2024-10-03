@@ -37,7 +37,7 @@ func main() {
 	go func() {
 		for {
 			jobs.EnhanceKills()
-			time.Sleep(1 * time.Hour) // Run every hour, adjust as needed
+			time.Sleep(1 * time.Minute) // Run every 15 minutes
 		}
 	}()
 

@@ -27,6 +27,15 @@ func EnhanceKills() {
 			continue
 		}
 
+		// Log the enhancedKill data for debugging
+		fmt.Printf("Enhanced kill data: %+v\n", enhancedKill)
+
+		// Skip invalid killmail IDs
+		if enhancedKill.KillmailID == 0 {
+			fmt.Printf("Skipping invalid killmail ID: %d\n", zkill.KillmailID)
+			continue
+		}
+
 		// Check if a Kill entry already exists
 		var existingKill models.Kill
 		if err := db.DB.Where("killmail_id = ?", zkill.KillmailID).First(&existingKill).Error; err == nil {
@@ -73,11 +82,17 @@ func fetchEnhancedKillData(zkill models.Zkill) (*models.Kill, error) {
 				Z float64 `json:"z"`
 			} `json:"position"`
 		} `json:"victim"`
-		Attackers []models.Attacker `json:"attackers"`
+		Attackers []json.RawMessage `json:"attackers"`
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&esiKill); err != nil {
 		return nil, err
+	}
+
+	// Convert Attackers to JSONB
+	attackersJSON, err := json.Marshal(esiKill.Attackers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal attackers: %v", err)
 	}
 
 	enhancedKill := &models.Kill{
@@ -96,7 +111,7 @@ func fetchEnhancedKillData(zkill models.Zkill) (*models.Kill, error) {
 				Z: esiKill.Victim.Position.Z,
 			},
 		},
-		Attackers: esiKill.Attackers,
+		Attackers: attackersJSON,
 		ZkillData: zkill,
 	}
 

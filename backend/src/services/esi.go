@@ -415,12 +415,18 @@ func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
 		return nil, fmt.Errorf("error unmarshaling killmail: %v", err)
 	}
 
+	// Marshal the Attackers slice into JSON
+	attackersJSON, err := json.Marshal(esiKill.Attackers)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling attackers: %v", err)
+	}
+
 	return &models.Kill{
 		KillmailID:    esiKill.KillmailID,
 		KillmailTime:  esiKill.KillmailTime,
 		SolarSystemID: esiKill.SolarSystemID,
 		Victim:        esiKill.Victim,
-		Attackers:     esiKill.Attackers,
+		Attackers:     attackersJSON,
 	}, nil
 }
 
