@@ -68,7 +68,7 @@ func fetchKillsForCharacter(characterID int64) {
 	page := 1
 	totalNewKills := 0
 
-	const maxConcurrentRequests = 10
+	const maxConcurrentRequests = 4
 	semaphore := make(chan struct{}, maxConcurrentRequests)
 	var wg sync.WaitGroup
 
