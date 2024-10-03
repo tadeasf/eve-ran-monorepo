@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tadeasf/eve-ran/src/db"
+	"github.com/tadeasf/eve-ran/src/jobs"
 )
 
 func GetCharacterKillmails(c *gin.Context) {
@@ -23,4 +24,24 @@ func GetCharacterKillmails(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, kills)
+}
+
+// TriggerKillFetchForCharacter triggers the kill fetcher job for a specific character
+func TriggerKillFetchForCharacter(c *gin.Context) {
+	characterID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid character ID"})
+		return
+	}
+
+	go jobs.FetchAllKillsForCharacter(characterID)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Kill fetch job triggered for character " + c.Param("id")})
+}
+
+// TriggerKillFetchForAllCharacters triggers the kill fetcher job for all characters
+func TriggerKillFetchForAllCharacters(c *gin.Context) {
+	go jobs.FetchKillsForAllCharacters()
+
+	c.JSON(http.StatusOK, gin.H{"message": "Kill fetch job triggered for all characters"})
 }

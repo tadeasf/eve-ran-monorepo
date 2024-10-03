@@ -22,7 +22,7 @@ func StartKillFetcherJob() {
 	c := cron.New()
 	c.AddFunc("@every 10min", func() {
 		log.Println("Starting to fetch kills for all characters")
-		fetchKillsForAllCharacters()
+		FetchKillsForAllCharacters()
 	})
 	c.Start()
 
@@ -31,7 +31,7 @@ func StartKillFetcherJob() {
 
 func killFetcherWorker() {
 	for characterID := range fetchQueue {
-		fetchKillsForCharacter(characterID)
+		FetchKillsForCharacter(characterID)
 	}
 }
 
@@ -39,7 +39,7 @@ func QueueCharacterForKillFetch(characterID int64) {
 	fetchQueue <- characterID
 }
 
-func fetchKillsForAllCharacters() {
+func FetchKillsForAllCharacters() {
 	characters, err := db.GetAllCharacters()
 	if err != nil {
 		log.Printf("Error fetching characters: %v", err)
