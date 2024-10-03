@@ -53,7 +53,7 @@ func FetchRegionInfo(regionID int) (*models.Region, error) {
 
 	// Ensure Constellations is initialized as an empty slice if it's null
 	if region.Constellations == nil {
-		region.Constellations = []int{}
+		region.Constellations = json.RawMessage("[]")
 	}
 
 	return &region, nil
