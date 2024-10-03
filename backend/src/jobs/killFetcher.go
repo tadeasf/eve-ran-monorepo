@@ -16,6 +16,8 @@ import (
 	"github.com/tadeasf/eve-ran/src/services"
 )
 
+var fetchQueue = make(chan int64, 100)
+
 func StartKillFetcherJob() {
 	c := cron.New()
 	c.AddFunc("@every 1h", func() {
@@ -24,7 +26,17 @@ func StartKillFetcherJob() {
 	})
 	c.Start()
 
-	go fetchKillsForAllCharacters()
+	go killFetcherWorker()
+}
+
+func killFetcherWorker() {
+	for characterID := range fetchQueue {
+		fetchKillsForCharacter(characterID)
+	}
+}
+
+func QueueCharacterForKillFetch(characterID int64) {
+	fetchQueue <- characterID
 }
 
 func fetchKillsForAllCharacters() {
@@ -34,13 +46,9 @@ func fetchKillsForAllCharacters() {
 		return
 	}
 
-	log.Printf("Found %d characters", len(characters))
-
 	for _, character := range characters {
-		fetchKillsForCharacter(character.ID)
+		QueueCharacterForKillFetch(character.ID)
 	}
-
-	log.Println("Finished fetching kills for all characters")
 }
 
 func fetchKillsForCharacter(characterID int64) {

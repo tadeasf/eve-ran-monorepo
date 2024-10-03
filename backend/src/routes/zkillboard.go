@@ -26,10 +26,27 @@ import (
 // @Failure 400 {object} models.ErrorResponse
 // @Failure 500 {object} models.ErrorResponse
 // @Router /characters [post]
+// AddCharacter adds a new character ID
+// @Summary Add a new character ID
+// @Description Add a new character ID to the database and fetch all kills
+// @Tags characters
+// @Accept json
+// @Produce json
+// @Param character body models.Character true "Character ID"
+// @Success 201 {object} models.Character
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /characters [post]
 func AddCharacter(c *gin.Context) {
 	var character models.Character
 	if err := c.ShouldBindJSON(&character); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	existingCharacter, err := db.GetCharacterByID(character.ID)
+	if err == nil && existingCharacter != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "Character already exists"})
 		return
 	}
 
@@ -65,11 +82,11 @@ func AddCharacter(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add character"})
 		return
 	}
-
-	// Trigger a full kill fetch for the new character
-	go jobs.FetchAllKillsForCharacter(character.ID)
-
 	c.JSON(http.StatusCreated, character)
+	// go jobs.FetchAllKillsForCharacter(character.ID)
+
+	// Queue the character for kill fetching
+	jobs.QueueCharacterForKillFetch(character.ID)
 }
 
 // RemoveCharacter removes a character
