@@ -21,19 +21,23 @@ export async function POST(request: Request) {
     const response = await fetch('https://ran.api.next.tadeasfort.com/characters', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ id: body.id }),
     })
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Backend API error:', errorText);
-      return NextResponse.json({ error: `Backend API error: ${response.status} ${response.statusText}` }, { status: response.status });
+      if (response.status === 409) {
+        return NextResponse.json({ error: 'Character already exists' }, { status: 409 })
+      } else if (response.status === 500) {
+        return NextResponse.json({ error: 'Server error occurred' }, { status: 500 })
+      } else {
+        return NextResponse.json({ error: `HTTP error! status: ${response.status}` }, { status: response.status })
+      }
     }
 
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
-    console.error('Error adding character:', error);
+    console.error('Error adding character:', error)
     return NextResponse.json({ error: 'Failed to add character' }, { status: 500 })
   }
 }
