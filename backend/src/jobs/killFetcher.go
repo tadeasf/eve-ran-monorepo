@@ -201,6 +201,7 @@ func insertNewKills(characterID int64, zkillKills []models.ZKillKill) int {
 }
 
 func enrichKillsForCharacter(characterID int64) {
+	log.Printf("Starting to enrich kills for character %d", characterID)
 	kills, err := queries.GetUnenrichedKillsForCharacter(characterID)
 	if err != nil {
 		log.Printf("Error fetching unenriched kills for character %d: %v", characterID, err)
