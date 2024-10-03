@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   const { id } = params
   const { searchParams } = new URL(request.url)
-  const url = new URL(`http://localhost:8080/characters/${id}/kills`)
+  const url = new URL(`https://ran.api.tadeasfort.com/characters/${id}/kills`)
   
   searchParams.forEach((value, key) => {
     url.searchParams.append(key, value)

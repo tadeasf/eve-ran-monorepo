@@ -9,7 +9,7 @@ export async function GET(
   const startDate = searchParams.get('startDate')
   const endDate = searchParams.get('endDate')
   
-  const url = new URL(`http://localhost:8080/kills/region/${regionID}`)
+  const url = new URL(`https://ran.api.tadeasfort.com/kills/region/${regionID}`)
   if (startDate) url.searchParams.append('startDate', startDate)
   if (endDate) url.searchParams.append('endDate', endDate)
 

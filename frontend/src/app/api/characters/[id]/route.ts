@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 export async function DELETE(request: Request, { params }: { params: { id: string } }) {
   const { id } = params
-  const response = await fetch(`http://localhost:8080/characters/${id}`, {
+  const response = await fetch(`https://ran.api.tadeasfort.com/characters/${id}`, {
     method: 'DELETE',
   })
   if (response.ok) {
