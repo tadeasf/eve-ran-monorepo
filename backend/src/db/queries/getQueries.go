@@ -121,3 +121,12 @@ func GetAllConstellations() ([]models.Constellation, error) {
 	err := db.DB.Find(&constellations).Error
 	return constellations, err
 }
+
+func KillExists(killmailID int64) (bool, error) {
+	var count int64
+	err := db.DB.Model(&models.Kill{}).Where("killmail_id = ?", killmailID).Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

@@ -98,29 +98,76 @@ func FetchKillsForAllCharacters() {
 	}
 }
 
-func FetchKillsForCharacter(characterID int64) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("Recovered from panic in FetchKillsForCharacter: %v", r)
+func FetchKillsForCharacter(characterID int64) (int, error) {
+	totalNewKills := 0
+	page := 1
+
+	for {
+		zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
+		if err != nil {
+			return totalNewKills, err
 		}
-		setJobRunning(false)
-	}()
 
-	log.Printf("Fetching kills for character %d", characterID)
+		if len(zkillKills) == 0 {
+			break
+		}
 
-	isInitialFetch, err := queries.IsInitialFetchForCharacter(characterID)
-	if err != nil {
-		log.Printf("Error checking initial fetch status for character %d: %v", characterID, err)
-		return
+		newKills := 0
+		for _, zkillKill := range zkillKills {
+			exists, err := queries.KillExists(zkillKill.KillmailID)
+			if err != nil {
+				log.Printf("Error checking if kill %d exists: %v", zkillKill.KillmailID, err)
+				continue
+			}
+
+			if !exists {
+				esiKill, err := services.FetchKillmailFromESI(zkillKill.KillmailID, zkillKill.ZKB.Hash)
+				if err != nil {
+					log.Printf("Error fetching killmail %d from ESI: %v", zkillKill.KillmailID, err)
+					continue
+				}
+
+				kill := models.Kill{
+					KillmailID:     zkillKill.KillmailID,
+					CharacterID:    characterID,
+					KillTime:       esiKill.KillTime,
+					SolarSystemID:  esiKill.SolarSystemID,
+					LocationID:     zkillKill.ZKB.LocationID,
+					Hash:           zkillKill.ZKB.Hash,
+					FittedValue:    zkillKill.ZKB.FittedValue,
+					DroppedValue:   zkillKill.ZKB.DroppedValue,
+					DestroyedValue: zkillKill.ZKB.DestroyedValue,
+					TotalValue:     zkillKill.ZKB.TotalValue,
+					Points:         zkillKill.ZKB.Points,
+					NPC:            zkillKill.ZKB.NPC,
+					Solo:           zkillKill.ZKB.Solo,
+					Awox:           zkillKill.ZKB.Awox,
+					Victim:         esiKill.Victim,
+					Attackers:      esiKill.Attackers,
+				}
+
+				err = queries.UpsertKill(&kill)
+				if err != nil {
+					log.Printf("Error upserting kill %d: %v", zkillKill.KillmailID, err)
+					continue
+				}
+
+				newKills++
+			}
+		}
+
+		totalNewKills += newKills
+		log.Printf("Inserted %d new kills for character %d on page %d", newKills, characterID, page)
+
+		if len(zkillKills) < 200 {
+			log.Printf("Less than 200 new kills on page %d for character %d, stopping", page, characterID)
+			break
+		}
+
+		page++
 	}
 
-	if isInitialFetch {
-		fetchAllKillsForCharacter(characterID)
-	} else {
-		fetchRecentKillsForCharacter(characterID)
-	}
-
-	enrichKillsForCharacter(characterID)
+	return totalNewKills, nil
 }
 
 func fetchAllKillsForCharacter(characterID int64) {
