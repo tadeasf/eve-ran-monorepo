@@ -199,3 +199,7 @@ func GetAllKills() ([]models.Kill, error) {
 	err := DB.Find(&kills).Error
 	return kills, err
 }
+
+func UpdateKill(kill *models.Kill) error {
+	return DB.Save(kill).Error
+}

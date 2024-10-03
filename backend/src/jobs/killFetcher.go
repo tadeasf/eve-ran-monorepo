@@ -2,18 +2,19 @@ package jobs
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/robfig/cron/v3"
 	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/models"
 	"github.com/tadeasf/eve-ran/src/services"
+	"gorm.io/gorm"
 )
 
 var (
@@ -139,56 +140,15 @@ func fetchKillsForCharacter(characterID int64) {
 		lastKillTime = time.Time{}
 	}
 	log.Printf("Last kill time for character %d: %v", characterID, lastKillTime)
-	isNewCharacter := lastKillTime.IsZero()
 	page := 1
 	totalNewKills := 0
 
-	concurrency := initialConcurrency
-	semaphore := make(chan struct{}, concurrency)
-	var wg sync.WaitGroup
-
-	killChan := make(chan *models.Kill, concurrency)
-	done := make(chan bool)
-	stopProcessing := make(chan bool)
-
-	// Batch processing goroutine
-	go func() {
-		batch := make([]*models.Kill, 0, concurrency)
-		for kill := range killChan {
-			batch = append(batch, kill)
-			if len(batch) == concurrency {
-				err := db.UpsertKillsBatch(batch)
-				if err != nil {
-					log.Printf("Error upserting kill batch: %v", err)
-				} else {
-					log.Printf("Successfully committed batch of %d kills to the database", len(batch))
-					totalNewKills += len(batch)
-				}
-				batch = batch[:0] // Clear the batch
-			}
-		}
-		// Process any remaining kills in the batch
-		if len(batch) > 0 {
-			err := db.UpsertKillsBatch(batch)
-			if err != nil {
-				log.Printf("Error upserting final kill batch: %v", err)
-			} else {
-				log.Printf("Successfully committed final batch of %d kills to the database", len(batch))
-				totalNewKills += len(batch)
-			}
-		}
-		done <- true
-	}()
-
-outerLoop:
 	for {
-		log.Printf("Fetching page %d for character %d with concurrency %d", page, characterID, concurrency)
+		log.Printf("Fetching page %d for character %d", page, characterID)
 		zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
 		if err != nil {
-			log.Printf("Error fetching kills for character %d: %v", characterID, err)
-			concurrency = max(minConcurrency, concurrency/2)
-			semaphore = make(chan struct{}, concurrency)
-			continue
+			log.Printf("Error fetching kills from zKillboard for character %d: %v", characterID, err)
+			break
 		}
 
 		if len(zkillKills) == 0 {
@@ -196,75 +156,73 @@ outerLoop:
 			break
 		}
 
-		var newKills int32
-		var errors int32
 		for _, zkill := range zkillKills {
-			select {
-			case <-stopProcessing:
-				break outerLoop
-			default:
-				wg.Add(1)
-				go func(zk models.ZKillKill) {
-					defer wg.Done()
-					semaphore <- struct{}{}
-					defer func() { <-semaphore }()
-
-					esiKill, err := services.FetchKillmailFromESI(zk.KillmailID, zk.ZKB.Hash)
-					if err != nil {
-						log.Printf("Error fetching ESI killmail %d: %v", zk.KillmailID, err)
-						atomic.AddInt32(&errors, 1)
-						return
-					}
-
-					kill := &models.Kill{
-						KillmailID:     esiKill.KillmailID,
-						CharacterID:    characterID,
-						KillTime:       esiKill.KillTime,
-						SolarSystemID:  esiKill.SolarSystemID,
-						LocationID:     zk.ZKB.LocationID,
-						Hash:           zk.ZKB.Hash,
-						FittedValue:    zk.ZKB.FittedValue,
-						DroppedValue:   zk.ZKB.DroppedValue,
-						DestroyedValue: zk.ZKB.DestroyedValue,
-						TotalValue:     zk.ZKB.TotalValue,
-						Points:         zk.ZKB.Points,
-						NPC:            zk.ZKB.NPC,
-						Solo:           zk.ZKB.Solo,
-						Awox:           zk.ZKB.Awox,
-						Victim:         esiKill.Victim,
-						Attackers:      esiKill.Attackers,
-					}
-
-					killChan <- kill
-					atomic.AddInt32(&newKills, 1)
-				}(zkill)
+			// Check if kill already exists in database
+			existingKill, err := db.GetKillByID(zkill.KillmailID)
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+				log.Printf("Error checking for existing kill %d: %v", zkill.KillmailID, err)
+				continue
 			}
-		}
 
-		wg.Wait()
+			if existingKill != nil {
+				// Kill already exists, skip
+				continue
+			}
 
-		log.Printf("Processed %d new kills for character %d on page %d", newKills, characterID, page)
+			// Create new kill with basic zKillboard data
+			kill := &models.Kill{
+				KillmailID:     zkill.KillmailID,
+				CharacterID:    characterID,
+				LocationID:     zkill.ZKB.LocationID,
+				Hash:           zkill.ZKB.Hash,
+				FittedValue:    zkill.ZKB.FittedValue,
+				DroppedValue:   zkill.ZKB.DroppedValue,
+				DestroyedValue: zkill.ZKB.DestroyedValue,
+				TotalValue:     zkill.ZKB.TotalValue,
+				Points:         zkill.ZKB.Points,
+				NPC:            zkill.ZKB.NPC,
+				Solo:           zkill.ZKB.Solo,
+				Awox:           zkill.ZKB.Awox,
+			}
 
-		if errors > 0 {
-			concurrency = max(minConcurrency, concurrency/2)
-		} else {
-			concurrency = min(maxConcurrency, concurrency*2)
-		}
-		semaphore = make(chan struct{}, concurrency)
+			// Insert basic kill data
+			err = db.InsertKill(kill)
+			if err != nil {
+				log.Printf("Error inserting basic kill data for killmail %d: %v", zkill.KillmailID, err)
+				continue
+			}
 
-		if newKills == 0 && !isNewCharacter {
-			log.Printf("No new kills on page %d for character %d, stopping", page, characterID)
-			break
+			// Queue kill for ESI enrichment
+			go enrichKillWithESIData(kill)
+
+			totalNewKills++
 		}
 
 		page++
-		time.Sleep(1 * time.Second)
+		time.Sleep(1 * time.Second) // Rate limiting
 	}
 
-	close(killChan)
-	<-done
-
 	log.Printf("Finished fetching kills for character %d. Total new kills: %d", characterID, totalNewKills)
+}
+
+func enrichKillWithESIData(kill *models.Kill) {
+	esiKill, err := services.FetchKillmailFromESI(kill.KillmailID, kill.Hash)
+	if err != nil {
+		log.Printf("Error fetching ESI data for killmail %d: %v", kill.KillmailID, err)
+		return
+	}
+
+	// Update kill with ESI data
+	kill.KillTime = esiKill.KillTime
+	kill.SolarSystemID = esiKill.SolarSystemID
+	kill.Victim = esiKill.Victim
+	kill.Attackers = esiKill.Attackers
+
+	// Update kill in database
+	err = db.UpdateKill(kill)
+	if err != nil {
+		log.Printf("Error updating kill %d with ESI data: %v", kill.KillmailID, err)
+	}
 }
 
 func min(a, b int) int {
