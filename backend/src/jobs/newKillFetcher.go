@@ -87,8 +87,8 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 	log.Printf("Starting to fetch new kills for character %d since %v", characterID, lastKillTime)
 	totalNewKills := int32(0)
 	page := 1
-	batchSize := 200
-	maxConcurrent := 200
+	batchSize := 500
+	maxConcurrent := 500
 
 	for {
 		log.Printf("Fetching page %d of kills for character %d", page, characterID)
@@ -156,7 +156,7 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 		}
 
 		if existingKill != nil {
-			log.Printf("Kill %d already exists, skipping", zkillKill.KillmailID)
+			// Kill already exists, skip silently
 			continue
 		}
 
@@ -167,7 +167,7 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 		}
 
 		if esiKill.KillTime.Before(lastKillTime) {
-			log.Printf("Kill %d is older than last kill time, skipping", zkillKill.KillmailID)
+			// Skip older kills silently
 			continue
 		}
 

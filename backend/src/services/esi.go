@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -13,6 +12,15 @@ import (
 )
 
 const esiBaseURL = "https://esi.evetech.net/latest"
+
+var esiClient = &http.Client{
+	Timeout: 30 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:        1000,
+		MaxIdleConnsPerHost: 1000,
+		IdleConnTimeout:     90 * time.Second,
+	},
+}
 
 func FetchRegionIDs() ([]int, error) {
 	url := fmt.Sprintf("%s/universe/regions/?datasource=tranquility", esiBaseURL)
@@ -370,38 +378,21 @@ func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
 	maxRetries := 3
 	baseDelay := time.Second
 
+	var lastErr error
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		kill, err := fetchKillmailFromESIWithRetry(killmailID, hash)
 		if err == nil {
 			return kill, nil
 		}
-
-		// Check if the error is a timeout error
-		var esiError struct {
-			Error   string `json:"error"`
-			Timeout int    `json:"timeout"`
-		}
-		if jsonErr := json.Unmarshal([]byte(err.Error()), &esiError); jsonErr == nil && esiError.Error == "Timeout contacting tranquility" {
-			delay := time.Duration(esiError.Timeout) * time.Second
-			log.Printf("ESI timeout for killmail_id %d. Retrying in %v (attempt %d/%d)", killmailID, delay, attempt+1, maxRetries)
-			time.Sleep(delay)
-		} else if attempt < maxRetries-1 {
-			delay := baseDelay * time.Duration(attempt+1)
-			log.Printf("Retrying fetch for killmail_id %d in %v (attempt %d/%d)", killmailID, delay, attempt+1, maxRetries)
-			time.Sleep(delay)
-		} else {
-			return nil, fmt.Errorf("failed to fetch killmail after %d attempts: %v", maxRetries, err)
-		}
+		lastErr = err
+		time.Sleep(time.Duration(attempt+1) * baseDelay)
 	}
 
-	return nil, fmt.Errorf("unexpected error: should not reach this point")
+	return nil, fmt.Errorf("failed to fetch killmail after %d attempts: %v", maxRetries, lastErr)
 }
 
 func fetchKillmailFromESIWithRetry(killmailID int64, hash string) (*models.Kill, error) {
 	url := fmt.Sprintf("https://esi.evetech.net/latest/killmails/%d/%s/?datasource=tranquility", killmailID, hash)
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -410,7 +401,7 @@ func fetchKillmailFromESIWithRetry(killmailID int64, hash string) (*models.Kill,
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Cache-Control", "no-cache")
 
-	resp, err := client.Do(req)
+	resp, err := esiClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -422,7 +413,7 @@ func fetchKillmailFromESIWithRetry(killmailID int64, hash string) (*models.Kill,
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s", string(body))
+		return nil, fmt.Errorf("ESI returned non-OK status: %d, body: %s", resp.StatusCode, string(body))
 	}
 
 	var esiKill struct {
