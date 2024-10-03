@@ -9,7 +9,11 @@ import (
 )
 
 type Character struct {
-	ID int64 `gorm:"primaryKey" json:"id"`
+	ID             int64   `gorm:"primaryKey" json:"id"`
+	Name           string  `json:"name"`
+	SecurityStatus float64 `json:"security_status"`
+	Title          string  `json:"title"`
+	RaceID         int     `json:"race_id"`
 }
 
 type Kill struct {

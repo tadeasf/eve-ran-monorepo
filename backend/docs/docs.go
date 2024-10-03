@@ -488,6 +488,18 @@ const docTemplate = `{
             "properties": {
                 "id": {
                     "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "race_id": {
+                    "type": "integer"
+                },
+                "security_status": {
+                    "type": "number"
+                },
+                "title": {
+                    "type": "string"
                 }
             }
         },

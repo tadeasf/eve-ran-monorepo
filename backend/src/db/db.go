@@ -11,13 +11,17 @@ import (
 )
 
 func InsertCharacter(character *models.Character) error {
-	return DB.Create(character).Error
+	result := DB.Create(character)
+	return result.Error
 }
 
 func GetCharacterByID(id int64) (*models.Character, error) {
 	var character models.Character
-	err := DB.First(&character, id).Error
-	return &character, err
+	result := DB.First(&character, id)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &character, nil
 }
 
 func InsertKill(kill *models.Kill) error {

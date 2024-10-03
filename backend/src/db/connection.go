@@ -27,19 +27,29 @@ func InitDB() {
 
 	fmt.Println("Successfully connected to the database")
 
-	err = InitTables()
+	err = MigrateSchema()
 	if err != nil {
-		log.Fatal("Failed to initialize tables:", err)
+		log.Fatal("Failed to migrate schema:", err)
 	}
 }
 
-func InitTables() error {
-	return DB.AutoMigrate(
+func MigrateSchema() error {
+	// List of all models that should be migrated
+	models := []interface{}{
 		&models.Character{},
 		&models.Kill{},
 		&models.Region{},
 		&models.System{},
 		&models.Constellation{},
 		&models.ESIItem{},
-	)
+	}
+
+	for _, model := range models {
+		if err := DB.AutoMigrate(model); err != nil {
+			return fmt.Errorf("failed to migrate %T: %v", model, err)
+		}
+	}
+
+	fmt.Println("Schema migration completed successfully")
+	return nil
 }

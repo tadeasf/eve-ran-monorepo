@@ -33,8 +33,34 @@ func AddCharacter(c *gin.Context) {
 		return
 	}
 
-	// Insert the character ID into the database
-	err := db.InsertCharacter(&character)
+	// Fetch character data from ESI API
+	esiURL := fmt.Sprintf("https://esi.evetech.net/latest/characters/%d/?datasource=tranquility", character.ID)
+	req, _ := http.NewRequest("GET", esiURL, nil)
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("Cache-Control", "no-cache")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch character data from ESI"})
+		return
+	}
+	defer resp.Body.Close()
+
+	var esiData map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&esiData); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse ESI response"})
+		return
+	}
+
+	// Update character with ESI data
+	character.Name = esiData["name"].(string)
+	character.SecurityStatus = esiData["security_status"].(float64)
+	character.Title = esiData["title"].(string)
+	character.RaceID = int(esiData["race_id"].(float64))
+
+	// Insert the character into the database
+	err = db.InsertCharacter(&character)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add character"})
 		return
