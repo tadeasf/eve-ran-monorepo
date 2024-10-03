@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   const startDate = searchParams.get('startDate')
   const endDate = searchParams.get('endDate')
 
-  const url = new URL('https://ran.api.tadeasfort.com/characters/stats')
+  const url = new URL('https://ran.api.next.tadeasfort.com/characters/stats')
   
   regionIDs.forEach(regionID => url.searchParams.append('regionID', regionID))
   if (startDate) url.searchParams.append('startDate', startDate)

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const response = await fetch('https://ran.api.tadeasfort.com/regions')
+    const response = await fetch('https://ran.api.next.tadeasfort.com/regions')
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }

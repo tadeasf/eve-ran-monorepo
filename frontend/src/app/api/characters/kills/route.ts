@@ -8,7 +8,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Character ID is required' }, { status: 400 })
   }
 
-  const url = new URL(`https://ran.api.tadeasfort.com/characters/${id}/kills`)
+  const url = new URL(`https://ran.api.next.tadeasfort.com/characters/${id}/kills`)
   
   searchParams.forEach((value, key) => {
     if (key !== 'id') {
