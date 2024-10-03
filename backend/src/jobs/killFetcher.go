@@ -249,22 +249,35 @@ func FetchKillsForCharacter(characterID int64) {
 			} `json:"zkb"`
 		}
 
-		resp, err := http.Get(url)
+		client := &http.Client{Timeout: 10 * time.Second}
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			log.Printf("Error creating request for character %d: %v", characterID, err)
+			return
+		}
+		req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran")
+
+		resp, err := client.Do(req)
 		if err != nil {
 			log.Printf("Error fetching kills for character %d: %v", characterID, err)
 			return
 		}
 		defer resp.Body.Close()
 
+		if resp.StatusCode != http.StatusOK {
+			log.Printf("Unexpected status code %d for character %d", resp.StatusCode, characterID)
+			return
+		}
+
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			log.Printf("Error reading response body: %v", err)
+			log.Printf("Error reading response body for character %d: %v", characterID, err)
 			return
 		}
 
 		err = json.Unmarshal(body, &zkillResponse)
 		if err != nil {
-			log.Printf("Error unmarshaling JSON: %v", err)
+			log.Printf("Error unmarshaling JSON for character %d: %v", characterID, err)
 			return
 		}
 
@@ -275,10 +288,18 @@ func FetchKillsForCharacter(characterID int64) {
 
 		newKills := 0
 		for _, zkill := range zkillResponse {
-			killTime, err := time.Parse("2006-01-02T15:04:05Z", zkill.KillmailTime)
-			if err != nil {
-				log.Printf("Error parsing kill time for killmail %d: %v", zkill.KillmailID, err)
-				killTime = time.Now() // Use current time if parsing fails
+			var killTime time.Time
+			if zkill.KillmailTime != "" {
+				parsedTime, err := time.Parse("2006-01-02T15:04:05Z", zkill.KillmailTime)
+				if err != nil {
+					log.Printf("Error parsing kill time for killmail %d: %v", zkill.KillmailID, err)
+					killTime = time.Now() // Use current time if parsing fails
+				} else {
+					killTime = parsedTime
+				}
+			} else {
+				log.Printf("Empty killmail time for killmail %d, using current time", zkill.KillmailID)
+				killTime = time.Now()
 			}
 
 			if !isNewCharacter && killTime.Before(lastKillTime) {
