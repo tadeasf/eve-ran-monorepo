@@ -18,13 +18,15 @@ import (
 // @schemes http https
 
 func main() {
-
 	gin.SetMode(gin.ReleaseMode)
 
 	db.InitDB()
 
 	// Run the type fetcher job
 	jobs.FetchAndUpdateTypes()
+
+	// Start the kill cron job
+	jobs.StartKillCron()
 
 	r := gin.Default()
 
