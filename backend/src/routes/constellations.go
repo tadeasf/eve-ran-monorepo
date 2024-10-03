@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
 )
@@ -60,7 +59,7 @@ func GetConstellationByID(c *gin.Context) {
 		return
 	}
 
-	constellation, err := db.GetConstellation(constellationID)
+	constellation, err := queries.GetConstellationByID(constellationID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -81,7 +80,7 @@ func GetConstellationsByRegion(c *gin.Context) {
 		return
 	}
 
-	constellations, err := db.GetConstellationsByRegionID(regionID)
+	constellations, err := queries.GetConstellationsByRegionID(regionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -130,3 +130,38 @@ func KillExists(killmailID int64) (bool, error) {
 	}
 	return count > 0, nil
 }
+
+func GetConstellationsByRegionID(regionID int) ([]models.Constellation, error) {
+	var constellations []models.Constellation
+	result := db.DB.Where("region_id = ?", regionID).Find(&constellations)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return constellations, nil
+}
+
+func GetCharacterKillmails(characterID int64, startTime, endTime time.Time, systemID, regionID int64) ([]models.Kill, error) {
+	query := db.DB.Where("character_id = ? AND kill_time BETWEEN ? AND ?", characterID, startTime, endTime)
+
+	if systemID != 0 {
+		query = query.Where("solar_system_id = ?", systemID)
+	}
+
+	if regionID != 0 {
+		query = query.Joins("JOIN systems ON kills.solar_system_id = systems.system_id").
+			Where("systems.region_id = ?", regionID)
+	}
+
+	var kills []models.Kill
+	err := query.Find(&kills).Error
+	return kills, err
+}
+
+func GetConstellationByID(id int) (*models.Constellation, error) {
+	var constellation models.Constellation
+	result := db.DB.First(&constellation, id)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &constellation, nil
+}

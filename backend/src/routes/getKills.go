@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tadeasf/eve-ran/src/db"
+	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/jobs"
 )
 
@@ -17,7 +17,7 @@ func GetCharacterKillmails(c *gin.Context) {
 	systemID, _ := strconv.ParseInt(c.Query("system_id"), 10, 64)
 	regionID, _ := strconv.ParseInt(c.Query("region_id"), 10, 64)
 
-	kills, err := db.GetCharacterKillmails(characterID, startTime, endTime, systemID, regionID)
+	kills, err := queries.GetCharacterKillmails(characterID, startTime, endTime, systemID, regionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

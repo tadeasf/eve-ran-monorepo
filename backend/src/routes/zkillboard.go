@@ -252,13 +252,13 @@ func GetCharacterKillsFromDB(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("pageSize", "20"))
 
-	kills, err := db.GetKillsForCharacter(id, page, pageSize)
+	kills, err := queries.GetKillsForCharacter(id, page, pageSize)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	totalItems, err := db.GetTotalKillsForCharacter(id)
+	totalItems, err := queries.GetTotalKillsForCharacter(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -304,7 +304,7 @@ func GetKillsByRegion(c *gin.Context) {
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
 
-	kills, totalCount, err := db.GetKillsByRegion(regionID, page, pageSize, startDate, endDate)
+	kills, totalCount, err := queries.GetKillsByRegion(regionID, page, pageSize, startDate, endDate)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
