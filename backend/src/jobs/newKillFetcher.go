@@ -111,7 +111,12 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 				defer wg.Done()
 				defer func() { <-sem }()
 
-				processNewKillsBatch(batch, characterID, lastKillTime, &totalNewKills)
+				newKillsInBatch, err := processNewKillsBatch(batch, characterID, lastKillTime)
+				if err != nil {
+					log.Printf("Error processing batch for character %d: %v", characterID, err)
+				} else {
+					atomic.AddInt32(&totalNewKills, int32(newKillsInBatch))
+				}
 			}(zkillKills[i:end])
 		}
 
@@ -130,8 +135,10 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 	return int(totalNewKills), nil
 }
 
-func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillTime time.Time, newKills *int32) {
+func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillTime time.Time) (int, error) {
 	var kills []models.Kill
+	newKills := 0
+
 	for _, zkillKill := range batch {
 		existingKill, err := queries.GetKillByKillmailID(zkillKill.KillmailID)
 		if err != nil {
@@ -163,7 +170,7 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 			LocationID:     zkillKill.ZKB.LocationID,
 			Hash:           zkillKill.ZKB.Hash,
 			FittedValue:    zkillKill.ZKB.FittedValue,
-			DroppedValue:   zkillKill.ZKB.DestroyedValue,
+			DroppedValue:   zkillKill.ZKB.DroppedValue,
 			DestroyedValue: zkillKill.ZKB.DestroyedValue,
 			TotalValue:     zkillKill.ZKB.TotalValue,
 			Points:         zkillKill.ZKB.Points,
@@ -175,7 +182,7 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 		}
 
 		kills = append(kills, kill)
-		atomic.AddInt32(newKills, 1)
+		newKills++
 		log.Printf("Added new kill %d for character %d", zkillKill.KillmailID, characterID)
 	}
 
@@ -183,10 +190,12 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 		err := queries.BulkUpsertKills(kills)
 		if err != nil {
 			log.Printf("Error bulk upserting kills: %v", err)
-		} else {
-			log.Printf("Successfully upserted %d kills for character %d", len(kills), characterID)
+			return 0, err
 		}
+		log.Printf("Successfully upserted %d kills for character %d", len(kills), characterID)
 	} else {
 		log.Printf("No new kills to upsert for character %d", characterID)
 	}
+
+	return newKills, nil
 }
