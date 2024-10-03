@@ -47,18 +47,30 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Add a new character ID to the database and fetch all kills",
+                "description": "Add a new character ID to the database and fetch all kills\nAdd a new character ID to the database and fetch all kills",
                 "consumes": [
+                    "application/json",
                     "application/json"
                 ],
                 "produces": [
+                    "application/json",
                     "application/json"
                 ],
                 "tags": [
+                    "characters",
                     "characters"
                 ],
                 "summary": "Add a new character ID",
                 "parameters": [
+                    {
+                        "description": "Character ID",
+                        "name": "character",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.Character"
+                        }
+                    },
                     {
                         "description": "Character ID",
                         "name": "character",

@@ -184,7 +184,10 @@ paths:
     post:
       consumes:
       - application/json
-      description: Add a new character ID to the database and fetch all kills
+      - application/json
+      description: |-
+        Add a new character ID to the database and fetch all kills
+        Add a new character ID to the database and fetch all kills
       parameters:
       - description: Character ID
         in: body
@@ -192,7 +195,14 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/models.Character'
+      - description: Character ID
+        in: body
+        name: character
+        required: true
+        schema:
+          $ref: '#/definitions/models.Character'
       produces:
+      - application/json
       - application/json
       responses:
         "201":
@@ -209,6 +219,7 @@ paths:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Add a new character ID
       tags:
+      - characters
       - characters
   /characters/{id}:
     delete:
