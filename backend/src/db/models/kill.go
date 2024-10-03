@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// Character model
 type Character struct {
 	ID             int64   `gorm:"primaryKey" json:"id"`
 	Name           string  `json:"name"`
@@ -16,6 +17,7 @@ type Character struct {
 	RaceID         int     `json:"race_id"`
 }
 
+// Kill model
 type Kill struct {
 	ID             int64         `gorm:"primaryKey" json:"id"`
 	KillmailID     int64         `gorm:"uniqueIndex" json:"killmail_id"`
@@ -36,21 +38,24 @@ type Kill struct {
 	Attackers      AttackersJSON `gorm:"type:jsonb" json:"attackers"`
 }
 
+// AttackersJSON type
 type AttackersJSON []Attacker
 
+// Value implementation for AttackersJSON
 func (a AttackersJSON) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }
 
+// Scan implementation for AttackersJSON
 func (a *AttackersJSON) Scan(value interface{}) error {
 	bytes, ok := value.([]byte)
 	if !ok {
 		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
 	}
-
 	return json.Unmarshal(bytes, &a)
 }
 
+// Victim model
 type Victim struct {
 	AllianceID    *int      `json:"alliance_id,omitempty"`
 	CharacterID   *int      `json:"character_id,omitempty"`
@@ -62,6 +67,7 @@ type Victim struct {
 	Position      *Position `json:"position" gorm:"type:jsonb"`
 }
 
+// Attacker model
 type Attacker struct {
 	AllianceID     *int    `json:"alliance_id,omitempty"`
 	CharacterID    *int    `json:"character_id,omitempty"`
@@ -74,57 +80,7 @@ type Attacker struct {
 	WeaponTypeID   int     `json:"weapon_type_id"`
 }
 
-type Item struct {
-	ItemTypeID        int  `json:"item_type_id"`
-	Singleton         int  `json:"singleton"`
-	QuantityDropped   *int `json:"quantity_dropped,omitempty"`
-	QuantityDestroyed *int `json:"quantity_destroyed,omitempty"`
-	Flag              int  `json:"flag"`
-}
-
-func (a Attacker) Value() (driver.Value, error) {
-	return json.Marshal(a)
-}
-
-func (a *Attacker) Scan(value interface{}) error {
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
-	}
-
-	return json.Unmarshal(bytes, &a)
-}
-
-func (k *Kill) MarshalJSON() ([]byte, error) {
-	type Alias Kill
-	return json.Marshal(&struct {
-		*Alias
-		Attackers json.RawMessage `json:"attackers"`
-	}{
-		Alias:     (*Alias)(k),
-		Attackers: k.AttackersJSON(),
-	})
-}
-
-func (k *Kill) UnmarshalJSON(data []byte) error {
-	type Alias Kill
-	aux := &struct {
-		*Alias
-		Attackers json.RawMessage `json:"attackers"`
-	}{
-		Alias: (*Alias)(k),
-	}
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-	return json.Unmarshal(aux.Attackers, &k.Attackers)
-}
-
-func (k *Kill) AttackersJSON() json.RawMessage {
-	b, _ := json.Marshal(k.Attackers)
-	return json.RawMessage(b)
-}
-
+// ZKillKill model
 type ZKillKill struct {
 	KillmailID int64 `json:"killmail_id"`
 	ZKB        struct {

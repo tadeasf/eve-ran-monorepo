@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/robfig/cron/v3"
-	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/models"
+	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
 )
 
@@ -29,13 +29,10 @@ func StartKillFetcherJob() {
 	})
 	c.Start()
 
-	// Trigger an immediate fetch when the application starts
 	go TriggerImmediateKillFetch()
-
 	go killFetcherWorker()
 }
 
-// Add this new function to allow immediate execution
 func TriggerImmediateKillFetch() {
 	if !isJobRunning() {
 		log.Println("Starting immediate kill fetch for all characters")
@@ -66,7 +63,7 @@ func killFetcherWorker() {
 		} else {
 			log.Printf("Kill fetcher job is already running, queuing character %d for later", characterID)
 			go func(id int64) {
-				time.Sleep(5 * time.Minute) // Wait for 5 minutes before re-queuing
+				time.Sleep(5 * time.Minute)
 				QueueCharacterForKillFetch(id)
 			}(characterID)
 		}
@@ -87,7 +84,7 @@ func FetchKillsForAllCharacters() {
 		setJobRunning(true)
 		defer setJobRunning(false)
 
-		characters, err := db.GetAllCharacters()
+		characters, err := queries.GetAllCharacters()
 		if err != nil {
 			log.Printf("Error fetching characters: %v", err)
 			return
@@ -111,8 +108,7 @@ func FetchKillsForCharacter(characterID int64) {
 
 	log.Printf("Fetching kills for character %d", characterID)
 
-	// Check if this is the initial fetch
-	isInitialFetch, err := db.IsInitialFetchForCharacter(characterID)
+	isInitialFetch, err := queries.IsInitialFetchForCharacter(characterID)
 	if err != nil {
 		log.Printf("Error checking initial fetch status for character %d: %v", characterID, err)
 		return
@@ -124,7 +120,6 @@ func FetchKillsForCharacter(characterID int64) {
 		fetchRecentKillsForCharacter(characterID)
 	}
 
-	// After inserting all new kills, enrich them
 	enrichKillsForCharacter(characterID)
 }
 
@@ -155,14 +150,14 @@ func fetchAllKillsForCharacter(characterID int64) {
 		}
 
 		page++
-		time.Sleep(1 * time.Second) // Rate limiting for zKillboard API
+		time.Sleep(1 * time.Second)
 	}
 
 	log.Printf("Finished initial kill fetch for character %d. Total new kills: %d", characterID, totalNewKills)
 }
 
 func fetchRecentKillsForCharacter(characterID int64) {
-	zkillKills, err := services.FetchKillsFromZKillboard(characterID, 1) // Fetch only the first page
+	zkillKills, err := services.FetchKillsFromZKillboard(characterID, 1)
 	if err != nil {
 		log.Printf("Error fetching recent kills from zKillboard for character %d: %v", characterID, err)
 		return
@@ -175,10 +170,9 @@ func fetchRecentKillsForCharacter(characterID int64) {
 func insertNewKills(characterID int64, zkillKills []models.ZKillKill) int {
 	newKills := 0
 	for _, zkill := range zkillKills {
-		// Check if kill already exists
-		existingKill, err := db.GetKillByID(zkill.KillmailID)
+		existingKill, err := queries.GetKillByID(zkill.KillmailID)
 		if err == nil && existingKill != nil {
-			continue // Skip existing kills
+			continue
 		}
 
 		kill := models.Kill{
@@ -196,8 +190,7 @@ func insertNewKills(characterID int64, zkillKills []models.ZKillKill) int {
 			Awox:           zkill.ZKB.Awox,
 		}
 
-		// Insert the kill
-		err = db.InsertKill(&kill)
+		err = queries.InsertKill(&kill)
 		if err != nil {
 			log.Printf("Error inserting kill %d: %v", kill.KillmailID, err)
 		} else {
@@ -208,7 +201,7 @@ func insertNewKills(characterID int64, zkillKills []models.ZKillKill) int {
 }
 
 func enrichKillsForCharacter(characterID int64) {
-	kills, err := db.GetUnenrichedKillsForCharacter(characterID)
+	kills, err := queries.GetUnenrichedKillsForCharacter(characterID)
 	if err != nil {
 		log.Printf("Error fetching unenriched kills for character %d: %v", characterID, err)
 		return
@@ -226,14 +219,14 @@ func enrichKillsForCharacter(characterID int64) {
 		kill.Victim = esiKill.Victim
 		kill.Attackers = esiKill.Attackers
 
-		err = db.UpdateKill(&kill)
+		err = queries.UpdateKill(&kill)
 		if err != nil {
 			log.Printf("Error updating kill %d with ESI data: %v", kill.KillmailID, err)
 		} else {
 			log.Printf("Successfully enriched kill %d", kill.KillmailID)
 		}
 
-		time.Sleep(100 * time.Millisecond) // Rate limiting for ESI
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	log.Printf("Finished enriching kills for character %d", characterID)

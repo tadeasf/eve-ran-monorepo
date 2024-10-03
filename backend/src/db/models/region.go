@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 )
 
+// Region model
 type Region struct {
-	RegionID       int      `gorm:"primaryKey" json:"region_id"`
-	Name           string   `gorm:"type:text" json:"name"`
-	Description    string   `gorm:"type:text" json:"description"`
-	Constellations IntArray `gorm:"type:jsonb" json:"constellations"`
+	RegionID       int    `gorm:"primaryKey" json:"region_id"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	Constellations []int  `gorm:"type:jsonb" json:"constellations"`
 }
 
 func (a IntArray) Value() (driver.Value, error) {

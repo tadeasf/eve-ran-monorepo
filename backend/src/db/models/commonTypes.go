@@ -1,7 +1,6 @@
 package models
 
 import (
-	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +20,7 @@ func (a *IntArray) Scan(value interface{}) error {
 	return err
 }
 
+// Position model
 type Position struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
@@ -37,32 +37,16 @@ func (p *Position) Scan(value interface{}) error {
 	return err
 }
 
-type ItemArray []Item
-
-func (a ItemArray) Value() (driver.Value, error) {
-	return json.Marshal(a)
-}
-
-func (a *ItemArray) Scan(value interface{}) error {
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
-	}
-
-	var items []Item
-	err := json.Unmarshal(bytes, &items)
-	*a = ItemArray(items)
-	return err
-}
-
-type ErrorResponse struct {
-	Error string `json:"error"`
-}
-
+// PaginatedResponse model
 type PaginatedResponse struct {
 	Data       interface{} `json:"data"`
 	Page       int         `json:"page"`
 	PageSize   int         `json:"pageSize"`
 	TotalItems int         `json:"totalItems"`
 	TotalPages int         `json:"totalPages"`
+}
+
+// ErrorResponse model
+type ErrorResponse struct {
+	Error string `json:"error"`
 }

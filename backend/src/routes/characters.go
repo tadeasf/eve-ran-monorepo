@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tadeasf/eve-ran/src/db"
+	"github.com/tadeasf/eve-ran/src/db/queries"
 )
 
 // GetAllCharacters retrieves all characters from the database
@@ -19,7 +20,7 @@ import (
 // @Failure 500 {object} models.ErrorResponse
 // @Router /characters [get]
 func GetAllCharacters(c *gin.Context) {
-	characters, err := db.GetAllCharacters()
+	characters, err := queries.GetAllCharacters()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -54,7 +55,7 @@ func GetAllKills(c *gin.Context) {
 // @Param regionID query []int false "Region IDs"
 // @Param startDate query string false "Start date (YYYY-MM-DD)"
 // @Param endDate query string false "End date (YYYY-MM-DD)"
-// @Success 200 {array} db.CharacterStats
+// @Success 200 {array} models.CharacterStats
 // @Failure 400 {object} models.ErrorResponse
 // @Failure 500 {object} models.ErrorResponse
 // @Router /characters/stats [get]
@@ -63,7 +64,6 @@ func GetAllCharacterStats(c *gin.Context) {
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
 
-	// Convert regionIDs from string to int
 	var regionIDInts []int64
 	for _, id := range regionIDs {
 		intID, err := strconv.ParseInt(id, 10, 64)
@@ -74,7 +74,6 @@ func GetAllCharacterStats(c *gin.Context) {
 		regionIDInts = append(regionIDInts, intID)
 	}
 
-	// Parse dates
 	var startTime, endTime time.Time
 	var err error
 	if startDate != "" {
@@ -92,7 +91,7 @@ func GetAllCharacterStats(c *gin.Context) {
 		}
 	}
 
-	stats, err := db.GetCharacterStats(startTime, endTime, 0, regionIDInts...)
+	stats, err := queries.GetCharacterStats(startTime, endTime, 0, regionIDInts...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

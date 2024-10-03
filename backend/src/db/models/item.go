@@ -1,5 +1,12 @@
 package models
 
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
+	"fmt"
+)
+
 type ESIItem struct {
 	TypeID         int     `gorm:"primaryKey" json:"type_id"`
 	GroupID        int     `gorm:"index" json:"group_id"`
@@ -21,4 +28,31 @@ type ZKillboardItem struct {
 	QuantityDropped   *int64           `json:"quantity_dropped,omitempty"`
 	Singleton         int              `json:"singleton"`
 	Items             []ZKillboardItem `gorm:"type:jsonb" json:"items,omitempty"`
+}
+
+// Item model
+type Item struct {
+	ItemTypeID        int  `json:"item_type_id"`
+	Singleton         int  `json:"singleton"`
+	QuantityDropped   *int `json:"quantity_dropped,omitempty"`
+	QuantityDestroyed *int `json:"quantity_destroyed,omitempty"`
+	Flag              int  `json:"flag"`
+}
+
+type ItemArray []Item
+
+func (a ItemArray) Value() (driver.Value, error) {
+	return json.Marshal(a)
+}
+
+func (a *ItemArray) Scan(value interface{}) error {
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
+	}
+
+	var items []Item
+	err := json.Unmarshal(bytes, &items)
+	*a = ItemArray(items)
+	return err
 }

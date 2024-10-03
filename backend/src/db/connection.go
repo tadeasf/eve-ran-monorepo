@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// DB is a package-level variable that holds the database connection
 var DB *gorm.DB
 
 func InitDB() {
