@@ -58,7 +58,7 @@ func fetchAndUpdateConstellations() {
 
 	constellationsChan := make(chan *models.Constellation, len(ids))
 	var wg sync.WaitGroup
-	rateLimiter := time.Tick(100 * time.Millisecond)
+	rateLimiter := time.Tick(10 * time.Millisecond)
 
 	for _, id := range ids {
 		if !existingMap[id] {
@@ -150,7 +150,7 @@ func fetchAndUpdateSystems() {
 
 	systemsChan := make(chan *models.System, len(ids))
 	var wg sync.WaitGroup
-	rateLimiter := time.Tick(100 * time.Millisecond)
+	rateLimiter := time.Tick(10 * time.Millisecond)
 
 	for _, id := range ids {
 		if !existingMap[id] {
