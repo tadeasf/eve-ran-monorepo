@@ -94,31 +94,55 @@ func fetchAndUpdateSystems() {
 		existingMap[system.SystemID] = true
 	}
 
+	batchSize := 100
+	var systemsBatch []*models.System
+
 	for _, id := range ids {
 		if !existingMap[id] {
-			fetchAndSaveSystem(id)
+			system := fetchSystem(id)
+			if system != nil {
+				systemsBatch = append(systemsBatch, system)
+			}
+
+			if len(systemsBatch) >= batchSize {
+				err := db.BatchUpsertSystems(systemsBatch)
+				if err != nil {
+					log.Printf("Error batch upserting systems: %v", err)
+				}
+				systemsBatch = []*models.System{}
+			}
 		}
 	}
+
+	// Upsert any remaining systems
+	if len(systemsBatch) > 0 {
+		err := db.BatchUpsertSystems(systemsBatch)
+		if err != nil {
+			log.Printf("Error batch upserting remaining systems: %v", err)
+		}
+	}
+
 	log.Println("Finished fetching and updating systems")
 }
 
-func fetchAndSaveSystem(id int) {
+func fetchSystem(id int) *models.System {
 	url := baseURL + "/universe/systems/" + strconv.Itoa(id) + "/"
 	resp, err := http.Get(url)
 	if err != nil {
 		log.Printf("Error fetching system %d: %v", id, err)
-		return
+		return nil
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 	var system models.System
-	json.Unmarshal(body, &system)
-
-	err = db.UpsertSystem(&system)
+	err = json.Unmarshal(body, &system)
 	if err != nil {
-		log.Printf("Error upserting system %d: %v", id, err)
+		log.Printf("Error unmarshaling system %d: %v", id, err)
+		return nil
 	}
+
+	return &system
 }
 
 func fetchAndUpdateItems() {
