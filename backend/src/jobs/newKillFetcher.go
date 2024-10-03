@@ -75,20 +75,26 @@ func FetchAllKillsForCharacter(characterID int64) {
 }
 
 func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, error) {
+	log.Printf("Starting to fetch new kills for character %d since %v", characterID, lastKillTime)
 	totalNewKills := int32(0)
 	page := 1
 	batchSize := 100
 	maxConcurrent := 10
 
 	for {
+		log.Printf("Fetching page %d of kills for character %d", page, characterID)
 		zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
 		if err != nil {
+			log.Printf("Error fetching kills from zKillboard for character %d: %v", characterID, err)
 			return int(totalNewKills), err
 		}
 
 		if len(zkillKills) == 0 {
+			log.Printf("No more kills found for character %d", characterID)
 			break
 		}
+
+		log.Printf("Processing %d kills for character %d", len(zkillKills), characterID)
 
 		sem := make(chan bool, maxConcurrent)
 		var wg sync.WaitGroup
@@ -113,12 +119,14 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 		log.Printf("Processed %d new kills for character %d on page %d", atomic.LoadInt32(&totalNewKills), characterID, page)
 
 		if len(zkillKills) < 200 {
+			log.Printf("Less than 200 kills found on page %d for character %d, stopping", page, characterID)
 			break
 		}
 
 		page++
 	}
 
+	log.Printf("Finished fetching new kills for character %d. Total new kills: %d", characterID, totalNewKills)
 	return int(totalNewKills), nil
 }
 
@@ -132,6 +140,7 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 		}
 
 		if existingKill != nil && !existingKill.KillTime.IsZero() {
+			log.Printf("Kill %d already exists, skipping", zkillKill.KillmailID)
 			continue
 		}
 
@@ -142,6 +151,7 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 		}
 
 		if esiKill.KillTime.Before(lastKillTime) {
+			log.Printf("Kill %d is older than last kill time, skipping", zkillKill.KillmailID)
 			continue
 		}
 
@@ -153,7 +163,7 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 			LocationID:     zkillKill.ZKB.LocationID,
 			Hash:           zkillKill.ZKB.Hash,
 			FittedValue:    zkillKill.ZKB.FittedValue,
-			DroppedValue:   zkillKill.ZKB.DroppedValue,
+			DroppedValue:   zkillKill.ZKB.DestroyedValue,
 			DestroyedValue: zkillKill.ZKB.DestroyedValue,
 			TotalValue:     zkillKill.ZKB.TotalValue,
 			Points:         zkillKill.ZKB.Points,
@@ -166,12 +176,17 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 
 		kills = append(kills, kill)
 		atomic.AddInt32(newKills, 1)
+		log.Printf("Added new kill %d for character %d", zkillKill.KillmailID, characterID)
 	}
 
 	if len(kills) > 0 {
 		err := queries.BulkUpsertKills(kills)
 		if err != nil {
 			log.Printf("Error bulk upserting kills: %v", err)
+		} else {
+			log.Printf("Successfully upserted %d kills for character %d", len(kills), characterID)
 		}
+	} else {
+		log.Printf("No new kills to upsert for character %d", characterID)
 	}
 }
