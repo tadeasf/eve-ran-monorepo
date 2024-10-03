@@ -41,6 +41,12 @@ func GetKillByKillmailID(killmailID int64) (*models.Kill, error) {
 	return &kill, nil
 }
 
+func GetKillsByKillmailIDs(killmailIDs []int64) ([]models.Kill, error) {
+	var kills []models.Kill
+	result := db.DB.Where("killmail_id IN ?", killmailIDs).Find(&kills)
+	return kills, result.Error
+}
+
 func GetAllKills() ([]models.Kill, error) {
 	var kills []models.Kill
 	err := db.DB.Find(&kills).Error

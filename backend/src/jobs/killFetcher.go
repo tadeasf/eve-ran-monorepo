@@ -1,16 +1,15 @@
 package jobs
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/tadeasf/eve-ran/src/db/models"
 	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
-	"gorm.io/gorm"
 )
 
 var (
@@ -130,25 +129,28 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 }
 
 func processKillsPage(characterID int64, zkillKills []models.ZKillKill) (int, bool, error) {
-	var kills []models.Kill
-	newKills := 0
-	allExist := true
+	killmailIDs := make([]int64, len(zkillKills))
+	for i, kill := range zkillKills {
+		killmailIDs[i] = kill.KillmailID
+	}
 
+	existingKills, err := queries.GetKillsByKillmailIDs(killmailIDs)
+	if err != nil {
+		return 0, false, fmt.Errorf("error checking existing kills: %v", err)
+	}
+
+	existingKillMap := make(map[int64]bool)
+	for _, kill := range existingKills {
+		existingKillMap[kill.KillmailID] = true
+	}
+
+	var newKills []models.Kill
 	for _, zkillKill := range zkillKills {
-		existingKill, err := queries.GetKillByKillmailID(zkillKill.KillmailID)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			log.Printf("Error checking existing kill %d: %v", zkillKill.KillmailID, err)
+		if existingKillMap[zkillKill.KillmailID] {
 			continue
 		}
 
-		if existingKill != nil {
-			log.Printf("Kill %d already exists, skipping", zkillKill.KillmailID)
-			continue
-		}
-
-		allExist = false
-
-		esiKill, err := fetchKillmailWithRetry(zkillKill.KillmailID, zkillKill.ZKB.Hash)
+		esiKill, err := fetchKillmailWithExponentialBackoff(zkillKill.KillmailID, zkillKill.ZKB.Hash)
 		if err != nil {
 			log.Printf("Error fetching killmail %d from ESI after retries: %v", zkillKill.KillmailID, err)
 			continue
@@ -173,21 +175,48 @@ func processKillsPage(characterID int64, zkillKills []models.ZKillKill) (int, bo
 			Attackers:      models.AttackersJSON(esiKill.Attackers),
 		}
 
-		kills = append(kills, kill)
-		newKills++
+		newKills = append(newKills, kill)
 	}
 
-	if len(kills) > 0 {
-		err := queries.BulkUpsertKills(kills)
+	if len(newKills) > 0 {
+		err := queries.BulkUpsertKills(newKills)
 		if err != nil {
-			return newKills, false, fmt.Errorf("error bulk upserting kills: %v", err)
+			return 0, false, fmt.Errorf("error bulk upserting kills: %v", err)
 		}
-		log.Printf("Successfully upserted %d new kills for character %d", len(kills), characterID)
+		log.Printf("Successfully upserted %d new kills for character %d", len(newKills), characterID)
 	} else {
 		log.Printf("No new kills found for character %d in this batch", characterID)
 	}
 
-	return newKills, allExist, nil
+	return len(newKills), len(newKills) == 0, nil
+}
+
+func fetchKillmailWithExponentialBackoff(killmailID int64, hash string) (*models.Kill, error) {
+	b := backoff.NewExponentialBackOff()
+	b.MaxElapsedTime = 5 * time.Minute
+
+	var esiKill *models.Kill
+	var err error
+
+	operation := func() error {
+		esiKill, err = services.FetchKillmailFromESI(killmailID, hash)
+		if err != nil {
+			if services.IsESIErrorLimit(err) {
+				log.Printf("ESI error limit reached, backing off")
+				return err
+			}
+			log.Printf("Error fetching killmail %d from ESI: %v", killmailID, err)
+			return err
+		}
+		return nil
+	}
+
+	err = backoff.Retry(operation, b)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch killmail after multiple attempts: %v", err)
+	}
+
+	return esiKill, nil
 }
 
 func fetchKillmailWithBackoff(killmailID int64, hash string) (*models.Kill, error) {

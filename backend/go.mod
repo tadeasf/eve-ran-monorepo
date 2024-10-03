@@ -3,6 +3,7 @@ module github.com/tadeasf/eve-ran
 go 1.23.1
 
 require (
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/gin-gonic/gin v1.10.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/swaggo/files v1.0.1
