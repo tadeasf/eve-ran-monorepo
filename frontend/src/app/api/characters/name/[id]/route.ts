@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import fetch from 'node-fetch'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
 async function fetchCharacterName(characterId: number): Promise<string> {
   const response = await fetch(`https://zkillboard.com/character/${characterId}/`, {
     headers: {
@@ -28,8 +30,7 @@ export async function GET(
   try {
     const name = await fetchCharacterName(parseInt(characterId, 10))
     
-    // Cache the name in our backend
-    await fetch('https://ran.backend.tadeasfort.com/characters/name/cache', {
+    await fetch(`${API_URL}/characters/name/cache`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: characterId, name }),

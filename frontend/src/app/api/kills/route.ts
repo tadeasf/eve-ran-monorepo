@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const url = new URL('https://ran.backend.tadeasfort.com/kills')
+  const url = new URL(`${API_URL}/kills`)
   
   searchParams.forEach((value, key) => {
     url.searchParams.append(key, value)

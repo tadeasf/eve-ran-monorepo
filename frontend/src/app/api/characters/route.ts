@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { Character } from '../../../lib/types'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
 export async function GET() {
   try {
-    const response = await fetch('https://ran.backend.tadeasfort.com/characters')
+    const response = await fetch(`${API_URL}/characters`)
     if (!response.ok) {
       throw new Error('Failed to fetch characters')
     }
@@ -18,7 +20,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const response = await fetch('https://ran.backend.tadeasfort.com/characters', {
+    const response = await fetch(`${API_URL}/characters`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: body.id }),

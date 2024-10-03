@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
@@ -8,7 +10,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Character ID is required' }, { status: 400 })
   }
 
-  const url = new URL(`https://ran.backend.tadeasfort.com/characters/${id}/kills/db`)
+  const url = new URL(`${API_URL}/characters/${id}/kills/db`)
   
   searchParams.forEach((value, key) => {
     if (key !== 'id') {

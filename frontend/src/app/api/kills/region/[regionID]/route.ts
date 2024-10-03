@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL
+
 export async function GET(
   request: Request,
   { params }: { params: { regionID: string } }
@@ -9,7 +11,7 @@ export async function GET(
   const startDate = searchParams.get('startDate')
   const endDate = searchParams.get('endDate')
   
-  const url = new URL(`https://ran.backend.tadeasfort.com/kills/region/${regionID}`)
+  const url = new URL(`${API_URL}/kills/region/${regionID}`)
   if (startDate) url.searchParams.append('startDate', startDate)
   if (endDate) url.searchParams.append('endDate', endDate)
 
