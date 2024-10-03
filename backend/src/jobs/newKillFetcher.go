@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"errors"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -9,6 +10,7 @@ import (
 	"github.com/tadeasf/eve-ran/src/db/models"
 	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
+	"gorm.io/gorm"
 )
 
 var (
@@ -148,12 +150,12 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 
 	for _, zkillKill := range batch {
 		existingKill, err := queries.GetKillByKillmailID(zkillKill.KillmailID)
-		if err != nil {
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			log.Printf("Error checking existing kill %d: %v", zkillKill.KillmailID, err)
 			continue
 		}
 
-		if existingKill != nil && !existingKill.KillTime.IsZero() {
+		if existingKill != nil {
 			log.Printf("Kill %d already exists, skipping", zkillKill.KillmailID)
 			continue
 		}
@@ -185,7 +187,7 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 			Solo:           zkillKill.ZKB.Solo,
 			Awox:           zkillKill.ZKB.Awox,
 			Victim:         esiKill.Victim,
-			Attackers:      esiKill.Attackers,
+			Attackers:      models.AttackersJSON(esiKill.Attackers),
 		}
 
 		kills = append(kills, kill)
