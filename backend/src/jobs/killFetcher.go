@@ -13,8 +13,8 @@ import (
 func FetchKillsForCharacter(characterID int64) (int, error) {
 	totalNewKills := int32(0)
 	page := 1
-	batchSize := 100
-	maxConcurrent := 10
+	batchSize := 50
+	maxConcurrent := 100
 
 	for {
 		zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
