@@ -36,12 +36,17 @@ export default function Characters() {
         body: JSON.stringify({ id: characterId }),
       })
       if (!response.ok) {
-        throw new Error('Failed to add character')
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Failed to add character: ${response.status} ${response.statusText}`);
       }
       return response.json()
     },
     {
       onSuccess: () => queryClient.invalidateQueries('characters'),
+      onError: (error) => {
+        console.error('Mutation error:', error);
+      }
     }
   )
 

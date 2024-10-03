@@ -25,13 +25,15 @@ export async function POST(request: Request) {
     })
 
     if (!response.ok) {
-      throw new Error('Failed to add character')
+      const errorText = await response.text();
+      console.error('Backend API error:', errorText);
+      return NextResponse.json({ error: `Backend API error: ${response.status} ${response.statusText}` }, { status: response.status });
     }
 
     const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
-    console.error('Error adding character:', error)
+    console.error('Error adding character:', error);
     return NextResponse.json({ error: 'Failed to add character' }, { status: 500 })
   }
 }
