@@ -1,6 +1,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -22,20 +24,28 @@ func main() {
 
 	db.InitDB()
 
+	// Add a delay to allow initial data to be stored
+	time.Sleep(1 * time.Minute)
+
 	// Run the type fetcher job
 	jobs.FetchAndUpdateTypes()
 
 	// Start the kill cron job
-	jobs.StartKillCron()
+	go jobs.StartKillCron()
 
-	jobs.StartKillFetcherWorker()
+	// Start the kill enhancement job
+	go func() {
+		for {
+			jobs.EnhanceKills()
+			time.Sleep(1 * time.Hour) // Run every hour, adjust as needed
+		}
+	}()
 
 	r := gin.Default()
 
 	// zKillboard routes
 	r.POST("/characters", routes.AddCharacter)
 	r.DELETE("/characters/:id", routes.RemoveCharacter)
-	r.GET("/characters/:id/kills", routes.GetCharacterKills)
 	r.GET("/characters/:id/kills/db", routes.GetCharacterKillsFromDB)
 
 	// Region routes
@@ -66,8 +76,6 @@ func main() {
 	// New data routes
 	r.GET("/characters", routes.GetAllCharacters)
 	r.GET("/kills", routes.GetAllKills)
-	r.GET("/characters/:id/fetch-kills", routes.TriggerKillFetchForCharacter)
-	r.GET("/characters/fetch-kills", routes.TriggerKillFetchForAllCharacters)
 
 	// Add this line to register the GetKillsByRegion route
 	r.GET("/kills/region/:regionID", routes.GetKillsByRegion)

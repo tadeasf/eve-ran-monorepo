@@ -1,57 +1,69 @@
 package jobs
 
 import (
-	"log"
+	"fmt"
 	"time"
 
-	"github.com/robfig/cron/v3"
+	"github.com/tadeasf/eve-ran/src/db/models"
 	"github.com/tadeasf/eve-ran/src/db/queries"
 )
 
-var killCron *cron.Cron
-
 func StartKillCron() {
-	killCron = cron.New()
+	ticker := time.NewTicker(15 * time.Minute)
+	defer ticker.Stop()
 
-	_, err := killCron.AddFunc("@every 5m", queueNewKillFetches)
-	if err != nil {
-		log.Printf("Error adding kill fetch cron job: %v", err)
-		return
-	}
-
-	killCron.Start()
-	log.Println("Kill fetch cron job started")
-}
-
-func StopKillCron() {
-	if killCron != nil {
-		killCron.Stop()
-		log.Println("Kill fetch cron job stopped")
+	for range ticker.C {
+		checkNewKills()
 	}
 }
 
-func queueNewKillFetches() {
-	log.Println("Queueing periodic kill fetches")
-
+func checkNewKills() {
 	characters, err := queries.GetAllCharacters()
 	if err != nil {
-		log.Printf("Error fetching characters: %v", err)
+		fmt.Printf("Error fetching characters: %v\n", err)
 		return
 	}
 
 	for _, character := range characters {
-		lastKillTime, err := queries.GetLastKillTimeForCharacter(character.ID)
+		page := 1
+		for {
+			kills, err := FetchKillsFromZKillboard(character.ID, page)
+			if err != nil {
+				fmt.Printf("Error fetching kills for character %d: %v\n", character.ID, err)
+				break
+			}
+
+			if len(kills) == 0 {
+				break
+			}
+
+			newKills := filterNewKills(kills)
+			if len(newKills) == 0 {
+				break
+			}
+
+			err = StoreKills(character.ID, newKills)
+			if err != nil {
+				fmt.Printf("Error storing new kills for character %d: %v\n", character.ID, err)
+				break
+			}
+
+			page++
+		}
+	}
+}
+
+func filterNewKills(kills []models.Zkill) []models.Zkill {
+	var newKills []models.Zkill
+	for _, kill := range kills {
+		exists, err := queries.KillExists(kill.KillmailID)
 		if err != nil {
-			log.Printf("Error getting last kill time for character %d: %v", character.ID, err)
+			fmt.Printf("Error checking if kill %d exists: %v\n", kill.KillmailID, err)
 			continue
 		}
-
-		if lastKillTime.IsZero() {
-			lastKillTime = time.Now().Add(-24 * time.Hour)
+		if !exists {
+			newKills = append(newKills, kill)
 		}
-
-		QueueKillFetch(character.ID, lastKillTime, false)
 	}
-
-	log.Println("Periodic kill fetch queuing completed")
+	return newKills
 }

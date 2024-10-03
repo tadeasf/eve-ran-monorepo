@@ -27,16 +27,15 @@ type ZKillboardItem struct {
 	QuantityDestroyed *int64           `json:"quantity_destroyed,omitempty"`
 	QuantityDropped   *int64           `json:"quantity_dropped,omitempty"`
 	Singleton         int              `json:"singleton"`
-	Items             []ZKillboardItem `gorm:"type:jsonb" json:"items,omitempty"`
+	Items             []ZKillboardItem `json:"items,omitempty"`
 }
 
-// Item model
 type Item struct {
-	ItemTypeID        int  `json:"item_type_id"`
-	Singleton         int  `json:"singleton"`
-	QuantityDropped   *int `json:"quantity_dropped,omitempty"`
-	QuantityDestroyed *int `json:"quantity_destroyed,omitempty"`
-	Flag              int  `json:"flag"`
+	ItemTypeID        int   `json:"item_type_id"`
+	QuantityDestroyed int64 `json:"quantity_destroyed,omitempty"`
+	QuantityDropped   int64 `json:"quantity_dropped,omitempty"`
+	Flag              int   `json:"flag"`
+	Singleton         int   `json:"singleton"`
 }
 
 type ItemArray []Item

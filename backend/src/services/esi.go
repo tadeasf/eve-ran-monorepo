@@ -404,11 +404,11 @@ func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
 	}
 
 	var esiKill struct {
-		KillmailID    int64                `json:"killmail_id"`
-		KillmailTime  time.Time            `json:"killmail_time"`
-		SolarSystemID int                  `json:"solar_system_id"`
-		Victim        models.Victim        `json:"victim"`
-		Attackers     models.AttackersJSON `json:"attackers"`
+		KillmailID    int64             `json:"killmail_id"`
+		KillmailTime  time.Time         `json:"killmail_time"`
+		SolarSystemID int               `json:"solar_system_id"`
+		Victim        models.Victim     `json:"victim"`
+		Attackers     []models.Attacker `json:"attackers"`
 	}
 	err = json.Unmarshal(body, &esiKill)
 	if err != nil {
@@ -417,7 +417,7 @@ func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
 
 	return &models.Kill{
 		KillmailID:    esiKill.KillmailID,
-		KillTime:      esiKill.KillmailTime,
+		KillmailTime:  esiKill.KillmailTime,
 		SolarSystemID: esiKill.SolarSystemID,
 		Victim:        esiKill.Victim,
 		Attackers:     esiKill.Attackers,

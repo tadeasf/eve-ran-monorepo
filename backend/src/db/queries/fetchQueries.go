@@ -112,26 +112,12 @@ func FetchKillsByRegion(regionID int, page, pageSize int, startDate, endDate str
 }
 
 func GetLastKillTimeForCharacter(characterID int64) (time.Time, error) {
-	var lastKill struct {
-		KillTime time.Time
+	var lastKill models.Kill
+	err := db.DB.Where("character_id = ?", characterID).Order("kill_time DESC").First(&lastKill).Error
+	if err != nil {
+		return time.Time{}, err
 	}
-
-	result := db.DB.Table("kills").
-		Where("character_id = ?", characterID).
-		Order("kill_time DESC").
-		Limit(1).
-		Select("kill_time").
-		Scan(&lastKill)
-
-	if result.Error != nil {
-		return time.Time{}, result.Error
-	}
-
-	if result.RowsAffected == 0 {
-		return time.Time{}, nil
-	}
-
-	return lastKill.KillTime, nil
+	return lastKill.KillmailTime, nil
 }
 
 func GetAllRegions() ([]models.Region, error) {
@@ -143,9 +129,8 @@ func GetAllRegions() ([]models.Region, error) {
 	return regions, nil
 }
 
-func GetKillsByRegion(regionID int, page, pageSize int, startDate, endDate string) ([]models.Kill, int64, error) {
+func GetKillsByRegion(regionID int, startDate, endDate string) ([]models.Kill, error) {
 	var kills []models.Kill
-	var totalCount int64
 
 	query := db.DB.Table("kills").
 		Joins("JOIN systems ON kills.solar_system_id = systems.system_id").
@@ -153,27 +138,18 @@ func GetKillsByRegion(regionID int, page, pageSize int, startDate, endDate strin
 		Where("constellations.region_id = ?", regionID)
 
 	if startDate != "" {
-		query = query.Where("kills.kill_time >= ?", startDate)
+		startTime, _ := time.Parse("2006-01-02", startDate)
+		query = query.Where("kills.killmail_time >= ?", startTime)
 	}
 	if endDate != "" {
-		query = query.Where("kills.kill_time <= ?", endDate)
+		endTime, _ := time.Parse("2006-01-02", endDate)
+		query = query.Where("kills.killmail_time <= ?", endTime)
 	}
 
-	err := query.Count(&totalCount).Error
+	err := query.Find(&kills).Error
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	err = query.
-		Offset((page - 1) * pageSize).
-		Limit(pageSize).
-		Find(&kills).Error
-
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return kills, totalCount, nil
+	return kills, nil
 }
-
-// Add other fetch queries as needed

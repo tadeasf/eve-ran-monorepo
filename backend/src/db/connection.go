@@ -38,6 +38,7 @@ func MigrateSchema() error {
 	// List of all models that should be migrated
 	models := []interface{}{
 		&models.Character{},
+		&models.Zkill{},
 		&models.Kill{},
 		&models.Region{},
 		&models.System{},
