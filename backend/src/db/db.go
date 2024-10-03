@@ -246,3 +246,29 @@ func BatchUpsertSystems(systems []*models.System) error {
 		return nil
 	})
 }
+
+func BatchUpsertConstellations(constellations []*models.Constellation) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		for _, constellation := range constellations {
+			systemsJSON, err := json.Marshal(constellation.Systems)
+			if err != nil {
+				return err
+			}
+
+			err = tx.Exec(`
+				INSERT INTO constellations (constellation_id, name, region_id, systems, position)
+				VALUES (?, ?, ?, ?, ?)
+				ON CONFLICT (constellation_id) DO UPDATE
+				SET name = EXCLUDED.name,
+					region_id = EXCLUDED.region_id,
+					systems = EXCLUDED.systems,
+					position = EXCLUDED.position
+			`, constellation.ConstellationID, constellation.Name, constellation.RegionID, systemsJSON, constellation.Position).Error
+
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

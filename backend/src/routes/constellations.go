@@ -10,21 +10,36 @@ import (
 )
 
 func FetchAndStoreConstellations(c *gin.Context) {
-	constellations, err := services.FetchAllConstellations(20) // Use 20 concurrent requests
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+	batchSize := 100
+	totalConstellations := 0
 
-	for _, constellation := range constellations {
-		err = db.UpsertConstellation(constellation)
+	for {
+		// Fetch a batch of constellations
+		constellations, err := services.FetchAllConstellations(batchSize)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		if len(constellations) == 0 {
+			break // No more constellations to fetch
+		}
+
+		// Batch upsert constellations
+		err = db.BatchUpsertConstellations(constellations)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		totalConstellations += len(constellations)
+
+		if len(constellations) < batchSize {
+			break // Last batch
+		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Constellations fetched and stored successfully", "count": len(constellations)})
+	c.JSON(http.StatusOK, gin.H{"message": "Constellations fetched and stored successfully", "count": totalConstellations})
 }
 
 func GetAllConstellations(c *gin.Context) {
