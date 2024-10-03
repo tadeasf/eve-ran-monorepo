@@ -4,7 +4,7 @@ const nextConfig = {
       return [
         {
           source: '/api/:path*',
-          destination: 'https://ran.api.next.tadeasfort.com/:path*',
+          destination: 'https://ran.backend.tadeasfort.com/:path*',
         },
       ]
     },

@@ -29,7 +29,7 @@ export async function GET(
     const name = await fetchCharacterName(parseInt(characterId, 10))
     
     // Cache the name in our backend
-    await fetch('https://ran.api.next.tadeasfort.com/characters/name/cache', {
+    await fetch('https://ran.backend.tadeasfort.com/characters/name/cache', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: characterId, name }),
