@@ -13,14 +13,12 @@ import (
 	"strconv"
 
 	"github.com/tadeasf/eve-ran/src/db/models"
-	"golang.org/x/time/rate"
 )
 
 const esiBaseURL = "https://esi.evetech.net/latest"
 
 var (
-	esiLimiter = rate.NewLimiter(rate.Every(time.Second/150), 150) // 150 requests per second
-	esiClient  = &http.Client{
+	esiClient = &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
 			MaxIdleConns:        1000,
@@ -451,4 +449,10 @@ func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
 
 func IsESITimeout(err error) bool {
 	return strings.Contains(err.Error(), "Timeout contacting tranquility")
+}
+
+func IsESIErrorLimit(err error) bool {
+	errorMessage := err.Error()
+	return strings.Contains(errorMessage, "ESI error limit reached") ||
+		strings.Contains(errorMessage, "This software has exceeded the error limit for ESI")
 }

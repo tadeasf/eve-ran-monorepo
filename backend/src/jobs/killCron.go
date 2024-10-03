@@ -34,6 +34,16 @@ func StopKillCron() {
 func queueNewKillFetches() {
 	log.Println("Queueing periodic kill fetches")
 
+	esiErrorLimitMutex.Lock()
+	if time.Now().Before(esiErrorLimitBackoff) {
+		sleepTime := time.Until(esiErrorLimitBackoff)
+		esiErrorLimitMutex.Unlock()
+		log.Printf("Waiting for ESI error limit backoff: %v", sleepTime)
+		time.Sleep(sleepTime)
+	} else {
+		esiErrorLimitMutex.Unlock()
+	}
+
 	characters, err := queries.GetAllCharacters()
 	if err != nil {
 		log.Printf("Error fetching characters: %v", err)

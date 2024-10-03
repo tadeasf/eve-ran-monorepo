@@ -15,11 +15,13 @@ import (
 )
 
 var (
-	killFetchQueue  = make(chan killFetchJob, 100)
-	backoffMutex    sync.Mutex
-	lastBackoffTime time.Time
-	workerRunning   bool
-	workerMutex     sync.Mutex
+	killFetchQueue       = make(chan killFetchJob, 100)
+	backoffMutex         sync.Mutex
+	lastBackoffTime      time.Time
+	workerRunning        bool
+	workerMutex          sync.Mutex
+	esiErrorLimitBackoff time.Time
+	esiErrorLimitMutex   sync.Mutex
 )
 
 type killFetchJob struct {
@@ -50,6 +52,16 @@ func QueueKillFetch(characterID int64, lastKillTime time.Time, isInitial bool) {
 
 func killFetcherWorker() {
 	for job := range killFetchQueue {
+		esiErrorLimitMutex.Lock()
+		if time.Now().Before(esiErrorLimitBackoff) {
+			sleepTime := time.Until(esiErrorLimitBackoff)
+			esiErrorLimitMutex.Unlock()
+			log.Printf("Waiting for ESI error limit backoff: %v", sleepTime)
+			time.Sleep(sleepTime)
+		} else {
+			esiErrorLimitMutex.Unlock()
+		}
+
 		var newKills int
 		var err error
 		if job.isInitial {
@@ -230,6 +242,16 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 }
 
 func fetchKillmailWithBackoff(killmailID int64, hash string) (*models.Kill, error) {
+	esiErrorLimitMutex.Lock()
+	if time.Now().Before(esiErrorLimitBackoff) {
+		sleepTime := time.Until(esiErrorLimitBackoff)
+		esiErrorLimitMutex.Unlock()
+		log.Printf("Waiting for ESI error limit backoff: %v", sleepTime)
+		time.Sleep(sleepTime)
+	} else {
+		esiErrorLimitMutex.Unlock()
+	}
+
 	backoffMutex.Lock()
 	if time.Since(lastBackoffTime) < 15*time.Second {
 		sleepTime := 15*time.Second - time.Since(lastBackoffTime)
@@ -248,6 +270,13 @@ func fetchKillmailWithBackoff(killmailID int64, hash string) (*models.Kill, erro
 			log.Printf("ESI timeout encountered, backing off for 15 seconds")
 			time.Sleep(15 * time.Second)
 			return fetchKillmailWithBackoff(killmailID, hash) // Retry after backoff
+		} else if services.IsESIErrorLimit(err) {
+			esiErrorLimitMutex.Lock()
+			esiErrorLimitBackoff = time.Now().Add(1 * time.Minute)
+			esiErrorLimitMutex.Unlock()
+			log.Printf("ESI error limit reached, backing off for 1 minute")
+			time.Sleep(1 * time.Minute)
+			return fetchKillmailWithBackoff(killmailID, hash) // Retry after waiting
 		}
 		return nil, err
 	}
