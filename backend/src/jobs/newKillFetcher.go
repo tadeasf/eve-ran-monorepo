@@ -88,7 +88,7 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 	totalNewKills := int32(0)
 	page := 1
 	batchSize := 1
-	maxConcurrent := 200
+	maxConcurrent := 1000
 
 	// If lastKillTime is zero, set it to a very old date to fetch all kills
 	if lastKillTime.IsZero() {
