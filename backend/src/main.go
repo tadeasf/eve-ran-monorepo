@@ -28,6 +28,8 @@ func main() {
 	// Start the kill cron job
 	jobs.StartKillCron()
 
+	jobs.StartKillFetcherWorker()
+
 	r := gin.Default()
 
 	// zKillboard routes

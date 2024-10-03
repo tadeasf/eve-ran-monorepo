@@ -90,7 +90,7 @@ func AddCharacter(c *gin.Context) {
 
 	// Queue the character for kill fetching
 	go func() {
-		jobs.QueueCharacterForKillFetch(character.ID)
+		jobs.QueueKillFetch(character.ID, time.Time{}, true)
 	}()
 
 	// Trigger kill fetch for the new character

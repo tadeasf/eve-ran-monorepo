@@ -14,7 +14,7 @@ func StartKillCron() {
 	killCron = cron.New()
 
 	// Run the job every hour
-	_, err := killCron.AddFunc("@hourly", fetchNewKills)
+	_, err := killCron.AddFunc("@hourly", queueNewKillFetches)
 	if err != nil {
 		log.Printf("Error adding kill fetch cron job: %v", err)
 		return
@@ -31,8 +31,8 @@ func StopKillCron() {
 	}
 }
 
-func fetchNewKills() {
-	log.Println("Starting periodic kill fetch")
+func queueNewKillFetches() {
+	log.Println("Queueing periodic kill fetches")
 
 	characters, err := queries.GetAllCharacters()
 	if err != nil {
@@ -52,14 +52,8 @@ func fetchNewKills() {
 			lastKillTime = time.Now().Add(-24 * time.Hour)
 		}
 
-		newKills, err := FetchNewKillsForCharacter(character.ID, lastKillTime)
-		if err != nil {
-			log.Printf("Error fetching new kills for character %d: %v", character.ID, err)
-			continue
-		}
-
-		log.Printf("Fetched %d new kills for character %d", newKills, character.ID)
+		QueueKillFetch(character.ID, lastKillTime, false)
 	}
 
-	log.Println("Periodic kill fetch completed")
+	log.Println("Periodic kill fetch queuing completed")
 }

@@ -13,7 +13,7 @@ type ESIErrorManager struct {
 
 var (
 	esiErrorManager = &ESIErrorManager{
-		errorRemaining: 60,                              // Default to 60, will be updated with actual value from ESI
+		errorRemaining: 30,                              // Default to 60, will be updated with actual value from ESI
 		resetTime:      time.Now().Add(1 * time.Minute), // Default to 1 minute, will be updated with actual value from ESI
 	}
 )
