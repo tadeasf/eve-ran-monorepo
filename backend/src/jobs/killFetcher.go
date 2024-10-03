@@ -20,7 +20,7 @@ var fetchQueue = make(chan int64, 100)
 
 func StartKillFetcherJob() {
 	c := cron.New()
-	c.AddFunc("@every 1h", func() {
+	c.AddFunc("@every 10min", func() {
 		log.Println("Starting to fetch kills for all characters")
 		fetchKillsForAllCharacters()
 	})
