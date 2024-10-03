@@ -31,11 +31,18 @@ export default function Characters() {
   )
 
   const addMutation = useMutation(
-    (characterId: number) => fetch('/api/characters', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: characterId }),
-    }),
+    async (characterId: number) => {
+      const name = await getCharacterName(characterId)
+      const response = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: characterId, name }),
+      })
+      if (!response.ok) {
+        throw new Error('Failed to add character')
+      }
+      return response.json()
+    },
     {
       onSuccess: () => queryClient.invalidateQueries('characters'),
     }
@@ -47,6 +54,9 @@ export default function Characters() {
       throw new Error('Failed to fetch character name')
     }
     const data = await response.json()
+    if (data.error) {
+      throw new Error(data.error)
+    }
     return data.name
   }
 
