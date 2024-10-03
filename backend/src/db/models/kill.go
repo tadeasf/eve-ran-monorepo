@@ -17,7 +17,8 @@ type Character struct {
 }
 
 type Kill struct {
-	KillmailID     int64         `json:"killmail_id" gorm:"primaryKey"`
+	ID             int64         `gorm:"primaryKey" json:"id"`
+	KillmailID     int64         `gorm:"uniqueIndex" json:"killmail_id"`
 	CharacterID    int64         `json:"character_id"`
 	KillTime       time.Time     `json:"killmail_time"`
 	SolarSystemID  int           `json:"solar_system_id"`
@@ -31,8 +32,8 @@ type Kill struct {
 	NPC            bool          `json:"npc"`
 	Solo           bool          `json:"solo"`
 	Awox           bool          `json:"awox"`
-	Victim         Victim        `json:"victim" gorm:"embedded;embeddedPrefix:victim_"`
-	Attackers      AttackersJSON `json:"attackers" gorm:"type:jsonb"`
+	Victim         Victim        `gorm:"embedded;embeddedPrefix:victim_" json:"victim"`
+	Attackers      AttackersJSON `gorm:"type:jsonb" json:"attackers"`
 }
 
 type AttackersJSON []Attacker
@@ -122,4 +123,31 @@ func (k *Kill) UnmarshalJSON(data []byte) error {
 func (k *Kill) AttackersJSON() json.RawMessage {
 	b, _ := json.Marshal(k.Attackers)
 	return json.RawMessage(b)
+}
+
+type ZKillKill struct {
+	KillmailID     int64   `json:"killmail_id"`
+	CharacterID    int64   `json:"character_id"`
+	LocationID     int64   `json:"locationID"`
+	Hash           string  `json:"hash"`
+	FittedValue    float64 `json:"fittedValue"`
+	DroppedValue   float64 `json:"droppedValue"`
+	DestroyedValue float64 `json:"destroyedValue"`
+	TotalValue     float64 `json:"totalValue"`
+	Points         int     `json:"points"`
+	NPC            bool    `json:"npc"`
+	Solo           bool    `json:"solo"`
+	Awox           bool    `json:"awox"`
+	ZKB            struct {
+		LocationID     int64   `json:"locationID"`
+		Hash           string  `json:"hash"`
+		FittedValue    float64 `json:"fittedValue"`
+		DroppedValue   float64 `json:"droppedValue"`
+		DestroyedValue float64 `json:"destroyedValue"`
+		TotalValue     float64 `json:"totalValue"`
+		Points         int     `json:"points"`
+		NPC            bool    `json:"npc"`
+		Solo           bool    `json:"solo"`
+		Awox           bool    `json:"awox"`
+	} `json:"zkb"`
 }

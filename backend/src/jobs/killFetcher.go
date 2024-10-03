@@ -22,6 +22,22 @@ var (
 	jobRunning bool
 )
 
+type zKillKill struct {
+	KillmailID int64 `json:"killmail_id"`
+	ZKB        struct {
+		LocationID     int64   `json:"locationID"`
+		Hash           string  `json:"hash"`
+		FittedValue    float64 `json:"fittedValue"`
+		DroppedValue   float64 `json:"droppedValue"`
+		DestroyedValue float64 `json:"destroyedValue"`
+		TotalValue     float64 `json:"totalValue"`
+		Points         int     `json:"points"`
+		NPC            bool    `json:"npc"`
+		Solo           bool    `json:"solo"`
+		Awox           bool    `json:"awox"`
+	} `json:"zkb"`
+}
+
 func StartKillFetcherJob() {
 	c := cron.New()
 	c.AddFunc("@every 10min", func() {
@@ -167,7 +183,7 @@ func fetchKillsForCharacter(characterID int64) {
 outerLoop:
 	for {
 		log.Printf("Fetching page %d for character %d with concurrency %d", page, characterID, concurrency)
-		kills, err := services.FetchKillsFromZKillboard(characterID, page)
+		zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
 		if err != nil {
 			log.Printf("Error fetching kills for character %d: %v", characterID, err)
 			concurrency = max(minConcurrency, concurrency/2)
@@ -175,44 +191,53 @@ outerLoop:
 			continue
 		}
 
-		if len(kills) == 0 {
+		if len(zkillKills) == 0 {
 			log.Printf("No more kills found for character %d", characterID)
 			break
 		}
 
 		var newKills int32
 		var errors int32
-		for _, kill := range kills {
+		for _, zkill := range zkillKills {
 			select {
 			case <-stopProcessing:
 				break outerLoop
 			default:
 				wg.Add(1)
-				go func(k models.Kill) {
+				go func(zk models.ZKillKill) {
 					defer wg.Done()
 					semaphore <- struct{}{}
 					defer func() { <-semaphore }()
 
-					esiKill, err := services.FetchKillmailFromESI(k.KillmailID, k.Hash)
+					esiKill, err := services.FetchKillmailFromESI(zk.KillmailID, zk.ZKB.Hash)
 					if err != nil {
-						log.Printf("Error fetching ESI killmail %d: %v", k.KillmailID, err)
+						log.Printf("Error fetching ESI killmail %d: %v", zk.KillmailID, err)
 						atomic.AddInt32(&errors, 1)
 						return
 					}
 
-					k.KillTime = esiKill.KillTime
-					k.SolarSystemID = esiKill.SolarSystemID
-					k.Victim = esiKill.Victim
-					k.Attackers = esiKill.Attackers
-
-					if isNewCharacter || k.KillTime.After(lastKillTime) {
-						atomic.AddInt32(&newKills, 1)
-						killChan <- &k
-					} else {
-						log.Printf("Reached already processed kills for character %d", characterID)
-						stopProcessing <- true
+					kill := &models.Kill{
+						KillmailID:     esiKill.KillmailID,
+						CharacterID:    characterID,
+						KillTime:       esiKill.KillTime,
+						SolarSystemID:  esiKill.SolarSystemID,
+						LocationID:     zk.ZKB.LocationID,
+						Hash:           zk.ZKB.Hash,
+						FittedValue:    zk.ZKB.FittedValue,
+						DroppedValue:   zk.ZKB.DroppedValue,
+						DestroyedValue: zk.ZKB.DestroyedValue,
+						TotalValue:     zk.ZKB.TotalValue,
+						Points:         zk.ZKB.Points,
+						NPC:            zk.ZKB.NPC,
+						Solo:           zk.ZKB.Solo,
+						Awox:           zk.ZKB.Awox,
+						Victim:         esiKill.Victim,
+						Attackers:      esiKill.Attackers,
 					}
-				}(kill)
+
+					killChan <- kill
+					atomic.AddInt32(&newKills, 1)
+				}(zkill)
 			}
 		}
 
@@ -323,10 +348,16 @@ func FetchKillsForCharacter(characterID int64) {
 
 		newKills := 0
 		for _, zkill := range zkillResponse {
-			killTime, err := time.Parse("2006-01-02T15:04:05Z", zkill.KillmailTime)
-			if err != nil {
-				log.Printf("Error parsing kill time for killmail %d: %v", zkill.KillmailID, err)
-				continue
+			killTime := time.Time{}
+			if zkill.KillmailTime != "" {
+				parsedTime, err := time.Parse("2006-01-02T15:04:05Z", zkill.KillmailTime)
+				if err != nil {
+					log.Printf("Error parsing kill time for killmail %d: %v", zkill.KillmailID, err)
+					continue
+				}
+				killTime = parsedTime
+			} else {
+				log.Printf("Warning: Empty killmail time for killmail %d", zkill.KillmailID)
 			}
 
 			if !isNewCharacter && killTime.Before(lastKillTime) || killTime.Equal(lastKillTime) {

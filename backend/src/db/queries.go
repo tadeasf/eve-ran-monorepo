@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/tadeasf/eve-ran/src/db/models"
+	"gorm.io/gorm/clause"
 )
 
 func GetConstellation(id int) (*models.Constellation, error) {
@@ -189,4 +190,28 @@ func GetCharacterStats(startTime, endTime time.Time, systemID int64, regionIDs .
 	var stats []CharacterStats
 	err := query.Find(&stats).Error
 	return stats, err
+}
+
+func InsertKill(kill *models.Kill) error {
+	return DB.Create(kill).Error
+}
+
+func UpsertKillsBatch(kills []*models.Kill) error {
+	return DB.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "killmail_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"character_id", "kill_time", "solar_system_id", "location_id", "hash", "fitted_value", "dropped_value", "destroyed_value", "total_value", "points", "npc", "solo", "awox", "victim_alliance_id", "victim_character_id", "victim_corporation_id", "victim_faction_id", "victim_damage_taken", "victim_ship_type_id", "victim_items", "victim_position", "attackers"}),
+	}).Create(kills).Error
+}
+
+func GetKillsForCharacter(characterID int64, page, pageSize int) ([]models.Kill, error) {
+	var kills []models.Kill
+	offset := (page - 1) * pageSize
+	err := DB.Where("character_id = ?", characterID).Order("kill_time DESC").Offset(offset).Limit(pageSize).Find(&kills).Error
+	return kills, err
+}
+
+func GetTotalKillsForCharacter(characterID int64) (int64, error) {
+	var count int64
+	err := DB.Model(&models.Kill{}).Where("character_id = ?", characterID).Count(&count).Error
+	return count, err
 }

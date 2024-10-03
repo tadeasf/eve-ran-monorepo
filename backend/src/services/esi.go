@@ -425,11 +425,23 @@ func fetchKillmailFromESIWithRetry(killmailID int64, hash string) (*models.Kill,
 		return nil, fmt.Errorf("%s", string(body))
 	}
 
-	var kill models.Kill
-	err = json.Unmarshal(body, &kill)
+	var esiKill struct {
+		KillmailID    int64                `json:"killmail_id"`
+		KillmailTime  time.Time            `json:"killmail_time"`
+		SolarSystemID int                  `json:"solar_system_id"`
+		Victim        models.Victim        `json:"victim"`
+		Attackers     models.AttackersJSON `json:"attackers"`
+	}
+	err = json.Unmarshal(body, &esiKill)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshaling killmail: %v", err)
 	}
 
-	return &kill, nil
+	return &models.Kill{
+		KillmailID:    esiKill.KillmailID,
+		KillTime:      esiKill.KillmailTime,
+		SolarSystemID: esiKill.SolarSystemID,
+		Victim:        esiKill.Victim,
+		Attackers:     esiKill.Attackers,
+	}, nil
 }

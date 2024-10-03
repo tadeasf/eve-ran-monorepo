@@ -30,18 +30,6 @@ func GetCharacterByID(id int64) (*models.Character, error) {
 	return &character, nil
 }
 
-func InsertKill(kill *models.Kill) error {
-	result := DB.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "killmail_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"character_id", "kill_time", "solar_system_id", "location_id", "hash", "fitted_value", "dropped_value", "destroyed_value", "total_value", "points", "npc", "solo", "awox", "victim_alliance_id", "victim_character_id", "victim_corporation_id", "victim_faction_id", "victim_damage_taken", "victim_ship_type_id", "victim_items", "victim_position", "attackers"}),
-	}).Create(kill)
-
-	if result.Error != nil {
-		return fmt.Errorf("error upserting kill: %v", result.Error)
-	}
-	return nil
-}
-
 func GetKillByID(id int64) (*models.Kill, error) {
 	var kill models.Kill
 	err := DB.First(&kill, id).Error
@@ -181,19 +169,6 @@ func GetESIItemByTypeID(typeID int) (*models.ESIItem, error) {
 	return &item, err
 }
 
-func GetKillsForCharacter(characterID int64, page, pageSize int) ([]models.Kill, error) {
-	var kills []models.Kill
-	offset := (page - 1) * pageSize
-	err := DB.Where("character_id = ?", characterID).Offset(offset).Limit(pageSize).Find(&kills).Error
-	return kills, err
-}
-
-func GetTotalKillsForCharacter(characterID int64) (int64, error) {
-	var count int64
-	err := DB.Model(&models.Kill{}).Where("character_id = ?", characterID).Count(&count).Error
-	return count, err
-}
-
 func GetAllCharacters() ([]models.Character, error) {
 	var characters []models.Character
 	err := DB.Find(&characters).Error
@@ -223,15 +198,4 @@ func GetAllKills() ([]models.Kill, error) {
 	var kills []models.Kill
 	err := DB.Find(&kills).Error
 	return kills, err
-}
-
-func UpsertKillsBatch(kills []*models.Kill) error {
-	tx := DB.Begin()
-	for _, kill := range kills {
-		if err := tx.Save(kill).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-	return tx.Commit().Error
 }

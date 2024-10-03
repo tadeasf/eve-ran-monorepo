@@ -8,7 +8,7 @@ import (
 	"github.com/tadeasf/eve-ran/src/db/models"
 )
 
-func FetchKillsFromZKillboard(characterID int64, page int) ([]models.Kill, error) {
+func FetchKillsFromZKillboard(characterID int64, page int) ([]models.ZKillKill, error) {
 	url := fmt.Sprintf("https://zkillboard.com/api/kills/characterID/%d/page/%d/", characterID, page)
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
@@ -44,9 +44,9 @@ func FetchKillsFromZKillboard(characterID int64, page int) ([]models.Kill, error
 		return nil, err
 	}
 
-	var kills []models.Kill
+	var kills []models.ZKillKill
 	for _, rawKill := range rawKills {
-		kill := models.Kill{
+		kill := models.ZKillKill{
 			KillmailID:     rawKill.KillmailID,
 			CharacterID:    characterID,
 			LocationID:     rawKill.ZKB.LocationID,
