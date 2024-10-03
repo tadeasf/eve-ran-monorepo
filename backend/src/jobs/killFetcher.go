@@ -16,38 +16,80 @@ import (
 	"github.com/tadeasf/eve-ran/src/services"
 )
 
-var fetchQueue = make(chan int64, 100)
+var (
+	fetchQueue = make(chan int64, 100)
+	jobMutex   sync.Mutex
+	jobRunning bool
+)
 
 func StartKillFetcherJob() {
 	c := cron.New()
 	c.AddFunc("@every 10min", func() {
-		log.Println("Starting to fetch kills for all characters")
-		FetchKillsForAllCharacters()
+		if !isJobRunning() {
+			log.Println("Starting to fetch kills for all characters")
+			go FetchKillsForAllCharacters()
+		} else {
+			log.Println("Kill fetcher job is already running, skipping this run")
+		}
 	})
 	c.Start()
 
 	go killFetcherWorker()
 }
 
+func isJobRunning() bool {
+	jobMutex.Lock()
+	defer jobMutex.Unlock()
+	return jobRunning
+}
+
+func setJobRunning(running bool) {
+	jobMutex.Lock()
+	defer jobMutex.Unlock()
+	jobRunning = running
+}
+
 func killFetcherWorker() {
 	for characterID := range fetchQueue {
-		FetchKillsForCharacter(characterID)
+		if !isJobRunning() {
+			setJobRunning(true)
+			FetchKillsForCharacter(characterID)
+			setJobRunning(false)
+		} else {
+			log.Printf("Kill fetcher job is already running, queuing character %d for later", characterID)
+			go func(id int64) {
+				time.Sleep(5 * time.Minute) // Wait for 5 minutes before re-queuing
+				QueueCharacterForKillFetch(id)
+			}(characterID)
+		}
 	}
 }
 
 func QueueCharacterForKillFetch(characterID int64) {
-	fetchQueue <- characterID
+	select {
+	case fetchQueue <- characterID:
+		log.Printf("Queued character %d for kill fetching", characterID)
+	default:
+		log.Printf("Queue is full, character %d will not be processed this time", characterID)
+	}
 }
 
 func FetchKillsForAllCharacters() {
-	characters, err := db.GetAllCharacters()
-	if err != nil {
-		log.Printf("Error fetching characters: %v", err)
-		return
-	}
+	if !isJobRunning() {
+		setJobRunning(true)
+		defer setJobRunning(false)
 
-	for _, character := range characters {
-		QueueCharacterForKillFetch(character.ID)
+		characters, err := db.GetAllCharacters()
+		if err != nil {
+			log.Printf("Error fetching characters: %v", err)
+			return
+		}
+
+		for _, character := range characters {
+			QueueCharacterForKillFetch(character.ID)
+		}
+	} else {
+		log.Println("Kill fetcher job is already running, skipping this run")
 	}
 }
 
@@ -56,6 +98,7 @@ func fetchKillsForCharacter(characterID int64) {
 		if r := recover(); r != nil {
 			log.Printf("Recovered from panic in fetchKillsForCharacter: %v", r)
 		}
+		setJobRunning(false)
 	}()
 
 	lastKillTime, err := db.GetLastKillTimeForCharacter(characterID)
@@ -162,6 +205,13 @@ func FetchAllKillsForCharacter(characterID int64) {
 }
 
 func FetchKillsForCharacter(characterID int64) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from panic in FetchKillsForCharacter: %v", r)
+		}
+		setJobRunning(false)
+	}()
+
 	lastKillTime, err := db.GetLastKillTimeForCharacter(characterID)
 	if err != nil {
 		log.Printf("Error getting last kill time for character %d: %v", characterID, err)
