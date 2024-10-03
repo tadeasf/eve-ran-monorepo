@@ -46,7 +46,7 @@ func AddCharacter(c *gin.Context) {
 		return
 	}
 	if existingCharacter != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Character already exists"})
+		c.JSON(http.StatusOK, existingCharacter)
 		return
 	}
 
@@ -73,7 +73,9 @@ func AddCharacter(c *gin.Context) {
 	// Update character with ESI data
 	character.Name = esiData["name"].(string)
 	character.SecurityStatus = esiData["security_status"].(float64)
-	character.Title = esiData["title"].(string)
+	if title, ok := esiData["title"].(string); ok {
+		character.Title = title
+	}
 	character.RaceID = int(esiData["race_id"].(float64))
 
 	// Insert the character into the database
