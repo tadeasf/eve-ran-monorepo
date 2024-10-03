@@ -15,6 +15,7 @@ import (
 	"github.com/tadeasf/eve-ran/src/db/models"
 	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/jobs"
+	"gorm.io/gorm"
 )
 
 var addCharacterMutex sync.Mutex
@@ -41,10 +42,11 @@ func AddCharacter(c *gin.Context) {
 	}
 
 	existingCharacter, err := queries.GetCharacterByID(character.ID)
-	if err != nil && err != queries.ErrRecordNotFound {
+	if err != nil && err != gorm.ErrRecordNotFound {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing character"})
 		return
 	}
+
 	if existingCharacter != nil {
 		c.JSON(http.StatusOK, existingCharacter)
 		return
@@ -79,8 +81,7 @@ func AddCharacter(c *gin.Context) {
 	character.RaceID = int(esiData["race_id"].(float64))
 
 	// Insert the character into the database
-	err = queries.UpsertCharacter(&character)
-	if err != nil {
+	if err := queries.UpsertCharacter(&character); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add character"})
 		return
 	}
