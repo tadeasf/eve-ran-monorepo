@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tadeasf/eve-ran/src/db"
+	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
 )
 
@@ -14,7 +14,6 @@ func FetchAndStoreSystems(c *gin.Context) {
 	totalSystems := 0
 
 	for {
-		// Fetch a batch of systems
 		systems, err := services.FetchAllSystems(batchSize)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -22,11 +21,10 @@ func FetchAndStoreSystems(c *gin.Context) {
 		}
 
 		if len(systems) == 0 {
-			break // No more systems to fetch
+			break
 		}
 
-		// Batch upsert systems
-		err = db.BatchUpsertSystems(systems)
+		err = queries.BatchUpsertSystems(systems)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -35,7 +33,7 @@ func FetchAndStoreSystems(c *gin.Context) {
 		totalSystems += len(systems)
 
 		if len(systems) < batchSize {
-			break // Last batch
+			break
 		}
 	}
 
@@ -43,7 +41,7 @@ func FetchAndStoreSystems(c *gin.Context) {
 }
 
 func GetAllSystems(c *gin.Context) {
-	systems, err := db.GetAllSystems()
+	systems, err := queries.GetAllSystems()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -59,7 +57,7 @@ func GetSystemByID(c *gin.Context) {
 		return
 	}
 
-	system, err := db.GetSystem(systemID)
+	system, err := queries.GetSystemByID(systemID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -80,7 +78,7 @@ func GetSystemsByRegion(c *gin.Context) {
 		return
 	}
 
-	systems, err := db.GetSystemsByRegionID(regionID)
+	systems, err := queries.GetSystemsByRegionID(regionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

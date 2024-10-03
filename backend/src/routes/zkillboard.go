@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/models"
+	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/jobs"
 )
 
@@ -39,8 +40,8 @@ func AddCharacter(c *gin.Context) {
 		return
 	}
 
-	existingCharacter, err := db.GetCharacterByID(character.ID)
-	if err != nil && err != db.ErrRecordNotFound {
+	existingCharacter, err := queries.GetCharacterByID(character.ID)
+	if err != nil && err != queries.ErrRecordNotFound {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to check existing character"})
 		return
 	}
@@ -76,7 +77,7 @@ func AddCharacter(c *gin.Context) {
 	character.RaceID = int(esiData["race_id"].(float64))
 
 	// Insert the character into the database
-	err = db.InsertCharacter(&character)
+	err = queries.UpsertCharacter(&character)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add character"})
 		return

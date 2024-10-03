@@ -11,7 +11,7 @@ type System struct {
 	SecurityStatus  float64         `json:"security_status"`
 	StarID          int             `json:"star_id"`
 	Planets         json.RawMessage `gorm:"type:jsonb" json:"planets"`
-	Stargates       []int           `gorm:"type:jsonb" json:"stargates"`
-	Stations        []int           `gorm:"type:jsonb" json:"stations"`
-	Position        *Position       `gorm:"type:jsonb" json:"position"`
+	Stargates       json.RawMessage `gorm:"type:jsonb" json:"stargates"`
+	Stations        json.RawMessage `gorm:"type:jsonb" json:"stations"`
+	Position        json.RawMessage `gorm:"type:jsonb" json:"position"`
 }

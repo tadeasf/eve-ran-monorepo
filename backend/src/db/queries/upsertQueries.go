@@ -1,8 +1,11 @@
 package queries
 
 import (
+	"encoding/json"
+
 	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/models"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -27,10 +30,63 @@ func UpsertKillsBatch(kills []*models.Kill) error {
 	}).Create(kills).Error
 }
 
-func InsertKill(kill *models.Kill) error {
-	return db.DB.Create(kill).Error
+func BatchUpsertSystems(systems []*models.System) error {
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		for _, system := range systems {
+			err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "system_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"constellation_id", "name", "security_class", "security_status", "star_id", "planets", "stargates", "stations", "position"}),
+			}).Create(system).Error
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
-func UpdateKill(kill *models.Kill) error {
-	return db.DB.Save(kill).Error
+func UpsertRegion(region *models.Region) error {
+	constellationsJSON, err := json.Marshal(region.Constellations)
+	if err != nil {
+		return err
+	}
+
+	return db.DB.Exec(`
+        INSERT INTO regions (region_id, name, description, constellations)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT (region_id) DO UPDATE
+        SET name = EXCLUDED.name,
+            description = EXCLUDED.description,
+            constellations = EXCLUDED.constellations
+    `, region.RegionID, region.Name, region.Description, constellationsJSON).Error
+}
+
+func BatchUpsertConstellations(constellations []*models.Constellation) error {
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		for _, constellation := range constellations {
+			systemsJSON, err := json.Marshal(constellation.Systems)
+			if err != nil {
+				return err
+			}
+
+			err = tx.Exec(`
+				INSERT INTO constellations (constellation_id, name, region_id, systems, position)
+				VALUES (?, ?, ?, ?, ?)
+				ON CONFLICT (constellation_id) DO UPDATE
+				SET name = EXCLUDED.name,
+					region_id = EXCLUDED.region_id,
+					systems = EXCLUDED.systems,
+					position = EXCLUDED.position
+			`, constellation.ConstellationID, constellation.Name, constellation.RegionID, systemsJSON, constellation.Position).Error
+
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func UpsertESIItem(item *models.ESIItem) error {
+	return db.DB.Save(item).Error
 }

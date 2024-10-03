@@ -190,12 +190,12 @@ func insertNewKills(characterID int64, zkillKills []models.ZKillKill) int {
 			Awox:           zkill.ZKB.Awox,
 		}
 
-		err = queries.InsertKill(&kill)
+		err = queries.UpsertKill(&kill)
 		if err != nil {
 			log.Printf("Error inserting kill %d: %v", kill.KillmailID, err)
-		} else {
-			newKills++
+			return 0
 		}
+		newKills++
 	}
 	return newKills
 }
@@ -219,7 +219,7 @@ func enrichKillsForCharacter(characterID int64) {
 		kill.Victim = esiKill.Victim
 		kill.Attackers = esiKill.Attackers
 
-		err = queries.UpdateKill(&kill)
+		err = queries.UpsertKill(&kill)
 		if err != nil {
 			log.Printf("Error updating kill %d with ESI data: %v", kill.KillmailID, err)
 		} else {

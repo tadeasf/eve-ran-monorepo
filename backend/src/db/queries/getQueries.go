@@ -1,11 +1,15 @@
 package queries
 
 import (
+	"errors"
 	"time"
 
 	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/models"
+	"gorm.io/gorm"
 )
+
+var ErrRecordNotFound = errors.New("record not found")
 
 func GetCharacterByID(id int64) (*models.Character, error) {
 	var character models.Character
@@ -70,7 +74,10 @@ func GetCharacterStats(startTime, endTime time.Time, systemID int64, regionIDs .
 func IsInitialFetchForCharacter(characterID int64) (bool, error) {
 	var count int64
 	err := db.DB.Model(&models.Kill{}).Where("character_id = ?", characterID).Count(&count).Error
-	return count == 0, err
+	if err != nil {
+		return false, err
+	}
+	return count == 0, nil
 }
 
 func GetKillByID(killmailID int64) (*models.Kill, error) {
@@ -83,4 +90,25 @@ func GetUnenrichedKillsForCharacter(characterID int64) ([]models.Kill, error) {
 	var kills []models.Kill
 	err := db.DB.Where("character_id = ? AND kill_time IS NULL", characterID).Find(&kills).Error
 	return kills, err
+}
+
+func GetAllESIItems() ([]models.ESIItem, error) {
+	var items []models.ESIItem
+	err := db.DB.Find(&items).Error
+	return items, err
+}
+
+func GetESIItemByTypeID(typeID int) (*models.ESIItem, error) {
+	var item models.ESIItem
+	err := db.DB.First(&item, typeID).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	return &item, err
+}
+
+func GetAllConstellations() ([]models.Constellation, error) {
+	var constellations []models.Constellation
+	err := db.DB.Find(&constellations).Error
+	return constellations, err
 }

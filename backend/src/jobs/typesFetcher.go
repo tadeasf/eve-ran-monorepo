@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/models"
+	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
 )
 
@@ -37,7 +37,7 @@ func fetchAndUpdateRegions() {
 	}
 
 	for _, region := range regions {
-		err := db.UpsertRegion(region)
+		err := queries.UpsertRegion(region)
 		if err != nil {
 			log.Printf("Error upserting region %d: %v", region.RegionID, err)
 		}
@@ -50,7 +50,7 @@ func fetchAndUpdateConstellations() {
 	url := baseURL + "/universe/constellations/"
 	ids := fetchIDs(url)
 
-	existingConstellations, _ := db.GetAllConstellations()
+	existingConstellations, _ := queries.GetAllConstellations()
 	existingMap := make(map[int]bool)
 	for _, constellation := range existingConstellations {
 		existingMap[constellation.ConstellationID] = true
@@ -67,7 +67,7 @@ func fetchAndUpdateConstellations() {
 			}
 
 			if len(constellationsBatch) >= batchSize {
-				err := db.BatchUpsertConstellations(constellationsBatch)
+				err := queries.BatchUpsertConstellations(constellationsBatch)
 				if err != nil {
 					log.Printf("Error batch upserting constellations: %v", err)
 				}
@@ -78,7 +78,7 @@ func fetchAndUpdateConstellations() {
 
 	// Upsert any remaining constellations
 	if len(constellationsBatch) > 0 {
-		err := db.BatchUpsertConstellations(constellationsBatch)
+		err := queries.BatchUpsertConstellations(constellationsBatch)
 		if err != nil {
 			log.Printf("Error batch upserting remaining constellations: %v", err)
 		}
@@ -112,7 +112,7 @@ func fetchAndUpdateSystems() {
 	url := baseURL + "/universe/systems/"
 	ids := fetchIDs(url)
 
-	existingSystems, _ := db.GetAllSystems()
+	existingSystems, _ := queries.GetAllSystems()
 	existingMap := make(map[int]bool)
 	for _, system := range existingSystems {
 		existingMap[system.SystemID] = true
@@ -129,7 +129,7 @@ func fetchAndUpdateSystems() {
 			}
 
 			if len(systemsBatch) >= batchSize {
-				err := db.BatchUpsertSystems(systemsBatch)
+				err := queries.BatchUpsertSystems(systemsBatch)
 				if err != nil {
 					log.Printf("Error batch upserting systems: %v", err)
 				}
@@ -140,7 +140,7 @@ func fetchAndUpdateSystems() {
 
 	// Upsert any remaining systems
 	if len(systemsBatch) > 0 {
-		err := db.BatchUpsertSystems(systemsBatch)
+		err := queries.BatchUpsertSystems(systemsBatch)
 		if err != nil {
 			log.Printf("Error batch upserting remaining systems: %v", err)
 		}
@@ -173,7 +173,7 @@ func fetchAndUpdateItems() {
 	log.Println("Fetching and updating items")
 	baseURL := baseURL + "/universe/types/"
 
-	existingItems, _ := db.GetAllESIItems()
+	existingItems, _ := queries.GetAllESIItems()
 	existingMap := make(map[int]bool)
 	for _, item := range existingItems {
 		existingMap[item.TypeID] = true
@@ -289,7 +289,7 @@ func fetchAndSaveItem(id int) {
 		return
 	}
 
-	err = db.UpsertESIItem(&item)
+	err = queries.UpsertESIItem(&item)
 	if err != nil {
 		log.Printf("Error upserting item %d: %v", id, err)
 	}

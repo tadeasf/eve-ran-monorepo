@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tadeasf/eve-ran/src/db"
+	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
 )
 
@@ -17,7 +17,7 @@ func FetchAndStoreItems(c *gin.Context) {
 	}
 
 	for _, item := range items {
-		err = db.UpsertESIItem(item)
+		err = queries.UpsertESIItem(item)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -28,7 +28,7 @@ func FetchAndStoreItems(c *gin.Context) {
 }
 
 func GetAllItems(c *gin.Context) {
-	items, err := db.GetAllESIItems()
+	items, err := queries.GetAllESIItems()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -45,7 +45,7 @@ func GetItemByTypeID(c *gin.Context) {
 		return
 	}
 
-	item, err := db.GetESIItemByTypeID(itemTypeID)
+	item, err := queries.GetESIItemByTypeID(itemTypeID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

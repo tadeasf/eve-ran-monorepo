@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tadeasf/eve-ran/src/db"
+	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
 )
 
@@ -16,7 +16,7 @@ func FetchAndStoreRegions(c *gin.Context) {
 	}
 
 	for _, region := range regions {
-		err = db.UpsertRegion(region)
+		err = queries.UpsertRegion(region)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -36,7 +36,7 @@ func FetchAndStoreRegions(c *gin.Context) {
 // @Failure 500 {object} models.ErrorResponse
 // @Router /regions [get]
 func GetAllRegions(c *gin.Context) {
-	regions, err := db.GetAllRegions()
+	regions, err := queries.GetAllRegions()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

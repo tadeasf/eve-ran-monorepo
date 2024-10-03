@@ -7,6 +7,27 @@ import (
 	"github.com/tadeasf/eve-ran/src/db/models"
 )
 
+func GetAllSystems() ([]models.System, error) {
+	var systems []models.System
+	err := db.DB.Find(&systems).Error
+	return systems, err
+}
+
+func GetSystemByID(systemID int) (*models.System, error) {
+	var system models.System
+	err := db.DB.First(&system, systemID).Error
+	if err != nil {
+		return nil, err
+	}
+	return &system, nil
+}
+
+func GetSystemsByRegionID(regionID int) ([]models.System, error) {
+	var systems []models.System
+	err := db.DB.Where("constellation_id IN (SELECT constellation_id FROM constellations WHERE region_id = ?)", regionID).Find(&systems).Error
+	return systems, err
+}
+
 func FetchKillsForCharacterWithFilters(characterID int64, page, pageSize, regionID int, startDate, endDate string) ([]models.Kill, error) {
 	var kills []models.Kill
 	query := db.DB.Where("character_id = ?", characterID)
@@ -58,6 +79,71 @@ func FetchTotalKillsForCharacterWithFilters(characterID int64, regionID int, sta
 }
 
 func FetchKillsByRegion(regionID int, page, pageSize int, startDate, endDate string) ([]models.Kill, int64, error) {
+	var kills []models.Kill
+	var totalCount int64
+
+	query := db.DB.Table("kills").
+		Joins("JOIN systems ON kills.solar_system_id = systems.system_id").
+		Joins("JOIN constellations ON systems.constellation_id = constellations.constellation_id").
+		Where("constellations.region_id = ?", regionID)
+
+	if startDate != "" {
+		query = query.Where("kills.kill_time >= ?", startDate)
+	}
+	if endDate != "" {
+		query = query.Where("kills.kill_time <= ?", endDate)
+	}
+
+	err := query.Count(&totalCount).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = query.
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Find(&kills).Error
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return kills, totalCount, nil
+}
+
+func GetLastKillTimeForCharacter(characterID int64) (time.Time, error) {
+	var lastKill struct {
+		KillTime time.Time
+	}
+
+	result := db.DB.Table("kills").
+		Where("character_id = ?", characterID).
+		Order("kill_time DESC").
+		Limit(1).
+		Select("kill_time").
+		Scan(&lastKill)
+
+	if result.Error != nil {
+		return time.Time{}, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return time.Time{}, nil
+	}
+
+	return lastKill.KillTime, nil
+}
+
+func GetAllRegions() ([]models.Region, error) {
+	var regions []models.Region
+	err := db.DB.Find(&regions).Error
+	if err != nil {
+		return nil, err
+	}
+	return regions, nil
+}
+
+func GetKillsByRegion(regionID int, page, pageSize int, startDate, endDate string) ([]models.Kill, int64, error) {
 	var kills []models.Kill
 	var totalCount int64
 

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/queries"
 )
 
@@ -38,7 +37,7 @@ func GetAllCharacters(c *gin.Context) {
 // @Failure 500 {object} models.ErrorResponse
 // @Router /kills [get]
 func GetAllKills(c *gin.Context) {
-	kills, err := db.GetAllKills()
+	kills, err := queries.GetAllKills()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

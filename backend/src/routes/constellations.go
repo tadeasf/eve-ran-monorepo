@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tadeasf/eve-ran/src/db"
+	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
 )
 
@@ -26,7 +27,7 @@ func FetchAndStoreConstellations(c *gin.Context) {
 		}
 
 		// Batch upsert constellations
-		err = db.BatchUpsertConstellations(constellations)
+		err = queries.BatchUpsertConstellations(constellations)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -43,7 +44,7 @@ func FetchAndStoreConstellations(c *gin.Context) {
 }
 
 func GetAllConstellations(c *gin.Context) {
-	constellations, err := db.GetAllConstellations()
+	constellations, err := queries.GetAllConstellations()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
