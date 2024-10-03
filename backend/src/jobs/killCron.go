@@ -13,8 +13,7 @@ var killCron *cron.Cron
 func StartKillCron() {
 	killCron = cron.New()
 
-	// Run the job every hour
-	_, err := killCron.AddFunc("@every 30s", queueNewKillFetches)
+	_, err := killCron.AddFunc("@every 5m", queueNewKillFetches)
 	if err != nil {
 		log.Printf("Error adding kill fetch cron job: %v", err)
 		return
@@ -34,16 +33,6 @@ func StopKillCron() {
 func queueNewKillFetches() {
 	log.Println("Queueing periodic kill fetches")
 
-	esiErrorLimitMutex.Lock()
-	if time.Now().Before(esiErrorLimitBackoff) {
-		sleepTime := time.Until(esiErrorLimitBackoff)
-		esiErrorLimitMutex.Unlock()
-		log.Printf("Waiting for ESI error limit backoff: %v", sleepTime)
-		time.Sleep(sleepTime)
-	} else {
-		esiErrorLimitMutex.Unlock()
-	}
-
 	characters, err := queries.GetAllCharacters()
 	if err != nil {
 		log.Printf("Error fetching characters: %v", err)
@@ -57,7 +46,6 @@ func queueNewKillFetches() {
 			continue
 		}
 
-		// If no kills found, fetch kills from the last 24 hours
 		if lastKillTime.IsZero() {
 			lastKillTime = time.Now().Add(-24 * time.Hour)
 		}

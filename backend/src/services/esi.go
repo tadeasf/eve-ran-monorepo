@@ -4,13 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
-
-	"strconv"
 
 	"github.com/tadeasf/eve-ran/src/db/models"
 )
@@ -381,70 +378,47 @@ func FetchAllSystems(concurrency int) ([]*models.System, error) {
 }
 
 func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
-	for {
-		if !esiErrorManager.CanMakeRequest() {
-			log.Println("ESI error limit reached, waiting for reset")
-			esiErrorManager.WaitForReset()
-			continue
-		}
-
-		url := fmt.Sprintf("https://esi.evetech.net/latest/killmails/%d/%s/?datasource=tranquility", killmailID, hash)
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran")
-		req.Header.Set("Accept", "application/json")
-		req.Header.Set("Cache-Control", "no-cache")
-
-		resp, err := esiClient.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		defer resp.Body.Close()
-
-		// Update error limits based on headers
-		if remaining, err := strconv.Atoi(resp.Header.Get("X-Esi-Error-Limit-Remain")); err == nil {
-			if reset, err := strconv.Atoi(resp.Header.Get("X-Esi-Error-Limit-Reset")); err == nil {
-				esiErrorManager.UpdateLimits(remaining, reset)
-			}
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("error reading ESI response body: %v", err)
-		}
-
-		if resp.StatusCode >= 400 {
-			esiErrorManager.DecrementErrorCount()
-			if resp.StatusCode == 420 {
-				log.Println("ESI error limit reached, waiting for reset")
-				esiErrorManager.WaitForReset()
-				continue
-			}
-			return nil, fmt.Errorf("ESI returned non-OK status: %d, body: %s", resp.StatusCode, string(body))
-		}
-
-		var esiKill struct {
-			KillmailID    int64                `json:"killmail_id"`
-			KillmailTime  time.Time            `json:"killmail_time"`
-			SolarSystemID int                  `json:"solar_system_id"`
-			Victim        models.Victim        `json:"victim"`
-			Attackers     models.AttackersJSON `json:"attackers"`
-		}
-		err = json.Unmarshal(body, &esiKill)
-		if err != nil {
-			return nil, fmt.Errorf("error unmarshaling killmail: %v", err)
-		}
-
-		return &models.Kill{
-			KillmailID:    esiKill.KillmailID,
-			KillTime:      esiKill.KillmailTime,
-			SolarSystemID: esiKill.SolarSystemID,
-			Victim:        esiKill.Victim,
-			Attackers:     esiKill.Attackers,
-		}, nil
+	url := fmt.Sprintf("%s/killmails/%d/%s/?datasource=tranquility", esiBaseURL, killmailID, hash)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
 	}
+	req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran")
+
+	resp, err := esiClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error making request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned non-OK status: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var esiKill struct {
+		KillmailID    int64                `json:"killmail_id"`
+		KillmailTime  time.Time            `json:"killmail_time"`
+		SolarSystemID int                  `json:"solar_system_id"`
+		Victim        models.Victim        `json:"victim"`
+		Attackers     models.AttackersJSON `json:"attackers"`
+	}
+	err = json.Unmarshal(body, &esiKill)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling killmail: %v", err)
+	}
+
+	return &models.Kill{
+		KillmailID:    esiKill.KillmailID,
+		KillTime:      esiKill.KillmailTime,
+		SolarSystemID: esiKill.SolarSystemID,
+		Victim:        esiKill.Victim,
+		Attackers:     esiKill.Attackers,
+	}, nil
 }
 
 func IsESITimeout(err error) bool {
@@ -452,7 +426,6 @@ func IsESITimeout(err error) bool {
 }
 
 func IsESIErrorLimit(err error) bool {
-	errorMessage := err.Error()
-	return strings.Contains(errorMessage, "ESI error limit reached") ||
-		strings.Contains(errorMessage, "This software has exceeded the error limit for ESI")
+	return strings.Contains(err.Error(), "ESI error limit reached") ||
+		strings.Contains(err.Error(), "This software has exceeded the error limit for ESI")
 }

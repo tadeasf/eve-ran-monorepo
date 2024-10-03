@@ -13,13 +13,11 @@ import (
 )
 
 var (
-	killFetchQueue       = make(chan killFetchJob, 1000) // Increase the queue size
-	backoffMutex         sync.Mutex
-	lastBackoffTime      time.Time
-	workerRunning        bool
-	workerMutex          sync.Mutex
-	esiErrorLimitBackoff time.Time
+	killFetchQueue       = make(chan killFetchJob, 1000)
+	failedKillFetchQueue = make(chan killFetchJob, 1000)
+	workerPool           = make(chan struct{}, 10) // Limit to 10 concurrent workers
 	esiErrorLimitMutex   sync.Mutex
+	esiErrorLimitBackoff time.Time
 )
 
 type killFetchJob struct {
@@ -28,20 +26,9 @@ type killFetchJob struct {
 	isInitial    bool
 }
 
-const (
-	maxRetries = 3
-	retryDelay = 5 * time.Second
-)
-
 func StartKillFetcherWorker() {
-	workerMutex.Lock()
-	if !workerRunning {
-		workerRunning = true
-		workerMutex.Unlock()
-		go killFetcherWorker()
-	} else {
-		workerMutex.Unlock()
-	}
+	go killFetcherWorker()
+	go failedKillFetchWorker()
 }
 
 func QueueKillFetch(characterID int64, lastKillTime time.Time, isInitial bool) {
@@ -55,29 +42,32 @@ func QueueKillFetch(characterID int64, lastKillTime time.Time, isInitial bool) {
 
 func killFetcherWorker() {
 	for job := range killFetchQueue {
-		esiErrorLimitMutex.Lock()
-		if time.Now().Before(esiErrorLimitBackoff) {
-			sleepTime := time.Until(esiErrorLimitBackoff)
-			esiErrorLimitMutex.Unlock()
-			log.Printf("Waiting for ESI error limit backoff: %v", sleepTime)
-			time.Sleep(sleepTime)
-		} else {
-			esiErrorLimitMutex.Unlock()
-		}
+		workerPool <- struct{}{} // Acquire a worker
+		go func(j killFetchJob) {
+			defer func() { <-workerPool }() // Release the worker when done
 
-		var newKills int
-		var err error
-		if job.isInitial {
-			newKills, err = FetchKillsForCharacter(job.characterID)
-		} else {
-			newKills, err = FetchNewKillsForCharacter(job.characterID, job.lastKillTime)
-		}
+			var newKills int
+			var err error
+			if j.isInitial {
+				newKills, err = FetchKillsForCharacter(j.characterID)
+			} else {
+				newKills, err = FetchNewKillsForCharacter(j.characterID, j.lastKillTime)
+			}
 
-		if err != nil {
-			log.Printf("Error fetching kills for character %d: %v", job.characterID, err)
-		} else {
-			log.Printf("Fetched %d kills for character %d (initial: %v)", newKills, job.characterID, job.isInitial)
-		}
+			if err != nil {
+				log.Printf("Error fetching kills for character %d: %v", j.characterID, err)
+				failedKillFetchQueue <- j
+			} else {
+				log.Printf("Fetched %d kills for character %d (initial: %v)", newKills, j.characterID, j.isInitial)
+			}
+		}(job)
+	}
+}
+
+func failedKillFetchWorker() {
+	for job := range failedKillFetchQueue {
+		time.Sleep(5 * time.Minute) // Wait before retrying
+		QueueKillFetch(job.characterID, job.lastKillTime, job.isInitial)
 	}
 }
 
@@ -106,7 +96,6 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 		newKills, allExist, err := processKillsPage(characterID, zkillKills)
 		if err != nil {
 			log.Printf("Error processing kills page for character %d: %v", characterID, err)
-			// Continue to the next page instead of stopping
 			page++
 			time.Sleep(pageStaggerInterval)
 			continue
@@ -217,70 +206,6 @@ func fetchKillmailWithExponentialBackoff(killmailID int64, hash string) (*models
 	}
 
 	return esiKill, nil
-}
-
-func fetchKillmailWithBackoff(killmailID int64, hash string) (*models.Kill, error) {
-	esiErrorLimitMutex.Lock()
-	if time.Now().Before(esiErrorLimitBackoff) {
-		sleepTime := time.Until(esiErrorLimitBackoff)
-		esiErrorLimitMutex.Unlock()
-		log.Printf("Waiting for ESI error limit backoff: %v", sleepTime)
-		time.Sleep(sleepTime)
-	} else {
-		esiErrorLimitMutex.Unlock()
-	}
-
-	backoffMutex.Lock()
-	if time.Since(lastBackoffTime) < 15*time.Second {
-		sleepTime := 15*time.Second - time.Since(lastBackoffTime)
-		backoffMutex.Unlock()
-		time.Sleep(sleepTime)
-	} else {
-		backoffMutex.Unlock()
-	}
-
-	esiKill, err := services.FetchKillmailFromESI(killmailID, hash)
-	if err != nil {
-		if services.IsESITimeout(err) {
-			backoffMutex.Lock()
-			lastBackoffTime = time.Now()
-			backoffMutex.Unlock()
-			log.Printf("ESI timeout encountered, backing off for 15 seconds")
-			time.Sleep(15 * time.Second)
-			return fetchKillmailWithBackoff(killmailID, hash) // Retry after backoff
-		} else if services.IsESIErrorLimit(err) {
-			esiErrorLimitMutex.Lock()
-			esiErrorLimitBackoff = time.Now().Add(1 * time.Minute)
-			esiErrorLimitMutex.Unlock()
-			log.Printf("ESI error limit reached, backing off for 1 minute")
-			time.Sleep(1 * time.Minute)
-			return fetchKillmailWithBackoff(killmailID, hash) // Retry after waiting
-		}
-		return nil, err
-	}
-	return esiKill, nil
-}
-
-func fetchKillmailWithRetry(killmailID int64, hash string) (*models.Kill, error) {
-	var esiKill *models.Kill
-	var err error
-
-	for i := 0; i < maxRetries; i++ {
-		esiKill, err = services.FetchKillmailFromESI(killmailID, hash)
-		if err == nil {
-			return esiKill, nil
-		}
-
-		if services.IsESIErrorLimit(err) {
-			log.Printf("ESI error limit reached, backing off for 1 minute")
-			time.Sleep(1 * time.Minute)
-		} else {
-			log.Printf("Error fetching killmail %d from ESI (attempt %d/%d): %v", killmailID, i+1, maxRetries, err)
-			time.Sleep(retryDelay)
-		}
-	}
-
-	return nil, fmt.Errorf("failed to fetch killmail after %d attempts: %v", maxRetries, err)
 }
 
 // Add these functions at the end of the file
