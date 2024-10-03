@@ -135,13 +135,30 @@ func fetchKillsForCharacter(characterID int64) {
 	done := make(chan bool)
 	stopProcessing := make(chan bool)
 
+	// Batch processing goroutine
 	go func() {
+		batch := make([]*models.Kill, 0, concurrency)
 		for kill := range killChan {
-			err = db.UpsertKill(kill)
+			batch = append(batch, kill)
+			if len(batch) == concurrency {
+				err := db.UpsertKillsBatch(batch)
+				if err != nil {
+					log.Printf("Error upserting kill batch: %v", err)
+				} else {
+					log.Printf("Successfully committed batch of %d kills to the database", len(batch))
+					totalNewKills += len(batch)
+				}
+				batch = batch[:0] // Clear the batch
+			}
+		}
+		// Process any remaining kills in the batch
+		if len(batch) > 0 {
+			err := db.UpsertKillsBatch(batch)
 			if err != nil {
-				log.Printf("Error upserting kill %d: %v", kill.KillmailID, err)
+				log.Printf("Error upserting final kill batch: %v", err)
 			} else {
-				totalNewKills++
+				log.Printf("Successfully committed final batch of %d kills to the database", len(batch))
+				totalNewKills += len(batch)
 			}
 		}
 		done <- true

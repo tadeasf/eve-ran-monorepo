@@ -224,3 +224,14 @@ func GetAllKills() ([]models.Kill, error) {
 	err := DB.Find(&kills).Error
 	return kills, err
 }
+
+func UpsertKillsBatch(kills []*models.Kill) error {
+	tx := DB.Begin()
+	for _, kill := range kills {
+		if err := tx.Save(kill).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+	return tx.Commit().Error
+}
