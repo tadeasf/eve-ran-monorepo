@@ -32,11 +32,10 @@ export default function Characters() {
 
   const addMutation = useMutation(
     async (characterId: number) => {
-      const name = await getCharacterName(characterId)
       const response = await fetch('/api/characters', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: characterId, name }),
+        body: JSON.stringify({ id: characterId }),
       })
       if (!response.ok) {
         throw new Error('Failed to add character')
@@ -47,42 +46,6 @@ export default function Characters() {
       onSuccess: () => queryClient.invalidateQueries('characters'),
     }
   )
-
-  const getCharacterName = async (characterId: number) => {
-    try {
-      // First, try to fetch from our API
-      const response = await fetch(`/api/characters/name/${characterId}`)
-      if (response.ok) {
-        const data = await response.json()
-        return data.name
-      }
-    } catch (error) {
-      console.error('Error fetching character name from API:', error)
-    }
-
-    // If API fetch fails, fallback to zKillboard
-    try {
-      const zkillResponse = await fetch(`https://zkillboard.com/character/${characterId}/`)
-      if (zkillResponse.ok) {
-        const html = await zkillResponse.text()
-        const nameMatch = html.match(/<meta name="description" content="([^:]+):/)
-        const name = nameMatch ? nameMatch[1].trim() : 'Unknown'
-
-        // Cache the name in our backend
-        await fetch('/api/characters/name/cache', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: characterId, name }),
-        })
-
-        return name
-      }
-    } catch (error) {
-      console.error('Error fetching character name from zKillboard:', error)
-    }
-
-    throw new Error('Failed to fetch character name')
-  }
 
   useEffect(() => {
     if (isLoading) {
@@ -152,7 +115,9 @@ export default function Characters() {
         {isLoading ? (
           <Skeleton className="h-[100px] w-full" />
         ) : (
-          <AddCharacterForm onAddCharacter={(id) => addMutation.mutate(id)} getCharacterName={getCharacterName} />
+          <AddCharacterForm onAddCharacter={(id) => addMutation.mutate(id)} getCharacterName={function (): Promise<string> {
+              throw new Error('Function not implemented.')
+            } } />
         )}
       </div>
     </div>

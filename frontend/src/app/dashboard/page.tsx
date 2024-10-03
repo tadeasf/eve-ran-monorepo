@@ -2,12 +2,16 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useQuery } from 'react-query'
+import { TrendingUp } from "lucide-react"
+import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 import CharacterTable from '../components/CharacterTable'
 import FilterControls from '../components/FilterControls'
 import { Region, CharacterStats, Character, KillmailData } from '../../lib/types'
 import { formatISK } from '../../lib/utils'
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert"
 import { Skeleton } from "../components/ui/skeleton"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card"
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart"
 
 const fetchRegions = async (): Promise<Region[]> => {
   const response = await fetch('/api/regions')
@@ -33,6 +37,7 @@ export default function Dashboard() {
   const [startDate, setStartDate] = useState<string>(getLastMonday())
   const [endDate, setEndDate] = useState<string>(getTodayDate())
   const [isLoading, setIsLoading] = useState(false)
+  const [killsOverTime, setKillsOverTime] = useState<{ date: string; kills: number }[]>([])
 
   const { data: regions, isLoading: isRegionsLoading, error: regionsError } = useQuery<Region[]>('regions', fetchRegions)
 
@@ -82,9 +87,23 @@ export default function Dashboard() {
           kill_count: stats.length,
           total_value: totalValue,
           formatted_total_value: formatISK(totalValue),
+          kills: stats,
         }
       })
 
+      const killsPerDay: { [date: string]: number } = {}
+      combinedStats.forEach((character) => {
+        character.kills.forEach((kill) => {
+          const date = kill.killmail_time.split('T')[0]
+          killsPerDay[date] = (killsPerDay[date] || 0) + 1
+        })
+      })
+
+      const sortedKillsOverTime = Object.entries(killsPerDay)
+        .map(([date, kills]) => ({ date, kills }))
+        .sort((a, b) => a.date.localeCompare(b.date))
+
+      setKillsOverTime(sortedKillsOverTime)
       setCharacters(combinedStats)
     } catch (error) {
       console.error('Failed to fetch character stats:', error)
@@ -102,6 +121,13 @@ export default function Dashboard() {
   if (regionsError) {
     return <div>Error loading regions: {(regionsError as Error).message}</div>
   }
+
+  const chartConfig = {
+    kills: {
+      label: "Total Kills",
+      color: "hsl(var(--chart-1))",
+    },
+  } satisfies ChartConfig
 
   return (
     <div className="container mx-auto p-4">
@@ -129,9 +155,61 @@ export default function Dashboard() {
           {isLoading ? (
             <Skeleton className="w-full h-[400px]" />
           ) : (
-            <CharacterTable
-              characters={characters}
-            />
+            <>
+              <CharacterTable characters={characters} />
+              <Card className="mt-8">
+                <CardHeader>
+                  <CardTitle>Total Kills Over Time</CardTitle>
+                  <CardDescription>
+                    Showing total kills for all characters in selected regions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ChartContainer config={chartConfig}>
+                    <AreaChart
+                      accessibilityLayer
+                      data={killsOverTime}
+                      margin={{
+                        left: 12,
+                        right: 12,
+                      }}
+                    >
+                      <CartesianGrid vertical={false} />
+                      <XAxis
+                        dataKey="date"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                      />
+                      <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent indicator="line" />}
+                      />
+                      <Area
+                        dataKey="kills"
+                        type="natural"
+                        fill="var(--color-kills)"
+                        fillOpacity={0.4}
+                        stroke="var(--color-kills)"
+                      />
+                    </AreaChart>
+                  </ChartContainer>
+                </CardContent>
+                <CardFooter>
+                  <div className="flex w-full items-start gap-2 text-sm">
+                    <div className="grid gap-2">
+                      <div className="flex items-center gap-2 font-medium leading-none">
+                        Showing kills trend <TrendingUp className="h-4 w-4" />
+                      </div>
+                      <div className="flex items-center gap-2 leading-none text-muted-foreground">
+                        {startDate} - {endDate}
+                      </div>
+                    </div>
+                  </div>
+                </CardFooter>
+              </Card>
+            </>
           )}
         </>
       )}

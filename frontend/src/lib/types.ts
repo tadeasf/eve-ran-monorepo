@@ -16,6 +16,9 @@ export interface CharacterStats {
 export interface Character {
   id: number
   name: string
+  security_status: number
+  title: string
+  race_id: number
 }
 
 export interface KillmailData {

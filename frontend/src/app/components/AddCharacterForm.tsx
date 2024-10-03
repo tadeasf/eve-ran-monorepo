@@ -14,16 +14,11 @@ export default function AddCharacterForm({ onAddCharacter, getCharacterName }: A
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (characterId) {
-      try {
-        const id = Number(characterId)
-        const name = await getCharacterName(id)
-        setCharacterName(name)
-        onAddCharacter(id)
-        setCharacterId('')
-      } catch (error) {
-        console.error('Error fetching character name:', error)
-        setCharacterName('Error: Unable to fetch character name')
-      }
+      const id = Number(characterId)
+      const name = await getCharacterName(id)
+      setCharacterName(name)
+      onAddCharacter(id)
+      setCharacterId('')
     }
   }
 
