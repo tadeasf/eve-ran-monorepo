@@ -10,9 +10,11 @@ async function fetchCharacterName(characterId: number): Promise<string> {
   return nameMatch ? nameMatch[1].trim() : 'Unknown'
 }
 
-export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const characterId = searchParams.get('characterId')
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const characterId = params.id
   
   if (!characterId) {
     return NextResponse.json({ error: 'Character ID is required' }, { status: 400 })
