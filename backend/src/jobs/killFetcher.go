@@ -25,15 +25,18 @@ var (
 
 func StartKillFetcherJob() {
 	c := cron.New()
-	c.AddFunc("@every 10min", func() {
+	c.AddFunc("@every 1h", func() {
 		if !isJobRunning() {
-			log.Println("Starting to fetch kills for all characters")
+			log.Println("Starting scheduled kill fetch for all characters")
 			go FetchKillsForAllCharacters()
 		} else {
-			log.Println("Kill fetcher job is already running, skipping this run")
+			log.Println("Kill fetcher job is already running, skipping this scheduled run")
 		}
 	})
 	c.Start()
+
+	// Trigger an immediate fetch when the application starts
+	go TriggerImmediateKillFetch()
 
 	go killFetcherWorker()
 }
@@ -42,7 +45,7 @@ func StartKillFetcherJob() {
 func TriggerImmediateKillFetch() {
 	if !isJobRunning() {
 		log.Println("Starting immediate kill fetch for all characters")
-		go FetchKillsForAllCharacters()
+		FetchKillsForAllCharacters()
 	} else {
 		log.Println("Kill fetcher job is already running, skipping immediate fetch")
 	}

@@ -29,9 +29,6 @@ func main() {
 	// Start the kill fetcher job
 	go jobs.StartKillFetcherJob()
 
-	// Trigger an immediate kill fetch for all characters
-	go jobs.FetchKillsForAllCharacters()
-
 	r := gin.Default()
 
 	// zKillboard routes
@@ -76,6 +73,12 @@ func main() {
 
 	// Setup Swagger
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Add a new route for manual trigger of kill fetching
+	r.GET("/trigger-kill-fetch", func(c *gin.Context) {
+		go jobs.TriggerImmediateKillFetch()
+		c.JSON(200, gin.H{"message": "Kill fetch triggered"})
+	})
 
 	r.Run(":8080")
 }
