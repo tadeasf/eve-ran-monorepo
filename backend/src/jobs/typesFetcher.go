@@ -56,31 +56,55 @@ func fetchAndUpdateConstellations() {
 		existingMap[constellation.ConstellationID] = true
 	}
 
+	batchSize := 100
+	var constellationsBatch []*models.Constellation
+
 	for _, id := range ids {
 		if !existingMap[id] {
-			fetchAndSaveConstellation(id)
+			constellation := fetchConstellation(id)
+			if constellation != nil {
+				constellationsBatch = append(constellationsBatch, constellation)
+			}
+
+			if len(constellationsBatch) >= batchSize {
+				err := db.BatchUpsertConstellations(constellationsBatch)
+				if err != nil {
+					log.Printf("Error batch upserting constellations: %v", err)
+				}
+				constellationsBatch = []*models.Constellation{}
+			}
 		}
 	}
+
+	// Upsert any remaining constellations
+	if len(constellationsBatch) > 0 {
+		err := db.BatchUpsertConstellations(constellationsBatch)
+		if err != nil {
+			log.Printf("Error batch upserting remaining constellations: %v", err)
+		}
+	}
+
 	log.Println("Finished fetching and updating constellations")
 }
 
-func fetchAndSaveConstellation(id int) {
+func fetchConstellation(id int) *models.Constellation {
 	url := baseURL + "/universe/constellations/" + strconv.Itoa(id) + "/"
 	resp, err := http.Get(url)
 	if err != nil {
 		log.Printf("Error fetching constellation %d: %v", id, err)
-		return
+		return nil
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 	var constellation models.Constellation
-	json.Unmarshal(body, &constellation)
-
-	err = db.UpsertConstellation(&constellation)
+	err = json.Unmarshal(body, &constellation)
 	if err != nil {
-		log.Printf("Error upserting constellation %d: %v", id, err)
+		log.Printf("Error unmarshaling constellation %d: %v", id, err)
+		return nil
 	}
+
+	return &constellation
 }
 
 func fetchAndUpdateSystems() {
