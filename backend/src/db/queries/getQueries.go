@@ -31,8 +31,14 @@ func GetAllCharacters() ([]models.Character, error) {
 
 func GetKillByKillmailID(killmailID int64) (*models.Kill, error) {
 	var kill models.Kill
-	err := db.DB.First(&kill, killmailID).Error
-	return &kill, err
+	result := db.DB.Where("killmail_id = ?", killmailID).First(&kill)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &kill, nil
 }
 
 func GetAllKills() ([]models.Kill, error) {

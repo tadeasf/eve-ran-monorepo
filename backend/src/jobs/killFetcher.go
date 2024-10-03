@@ -209,18 +209,28 @@ func enrichKillsForCharacter(characterID int64) {
 	}
 
 	for _, kill := range kills {
+		existingKill, err := queries.GetKillByKillmailID(kill.KillmailID)
+		if err != nil {
+			log.Printf("Error checking existing kill %d: %v", kill.KillmailID, err)
+			continue
+		}
+		if existingKill == nil {
+			log.Printf("Kill %d not found in database, skipping", kill.KillmailID)
+			continue
+		}
+
 		esiKill, err := services.FetchKillmailFromESI(kill.KillmailID, kill.Hash)
 		if err != nil {
 			log.Printf("Error fetching killmail %d from ESI: %v", kill.KillmailID, err)
 			continue
 		}
 
-		kill.KillTime = esiKill.KillTime
-		kill.SolarSystemID = esiKill.SolarSystemID
-		kill.Victim = esiKill.Victim
-		kill.Attackers = esiKill.Attackers
+		existingKill.KillTime = esiKill.KillTime
+		existingKill.SolarSystemID = esiKill.SolarSystemID
+		existingKill.Victim = esiKill.Victim
+		existingKill.Attackers = esiKill.Attackers
 
-		err = queries.UpsertKill(&kill)
+		err = queries.UpsertKill(existingKill)
 		if err != nil {
 			log.Printf("Error updating kill %d with ESI data: %v", kill.KillmailID, err)
 		} else {
