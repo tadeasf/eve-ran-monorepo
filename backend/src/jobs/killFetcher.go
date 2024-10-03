@@ -52,6 +52,12 @@ func FetchKillsForAllCharacters() {
 }
 
 func fetchKillsForCharacter(characterID int64) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from panic in fetchKillsForCharacter: %v", r)
+		}
+	}()
+
 	lastKillTime, err := db.GetLastKillTimeForCharacter(characterID)
 	if err != nil {
 		log.Printf("Error getting last kill time for character %d: %v", characterID, err)

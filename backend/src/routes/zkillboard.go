@@ -81,8 +81,8 @@ func AddCharacter(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add character"})
 		return
 	}
+
 	c.JSON(http.StatusCreated, character)
-	// go jobs.FetchAllKillsForCharacter(character.ID)
 
 	// Queue the character for kill fetching
 	go func() {
