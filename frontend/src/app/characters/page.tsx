@@ -8,7 +8,6 @@ import AddCharacterForm from '../components/AddCharacterForm'
 import { Character } from '../../lib/types'
 import { Skeleton } from "../components/ui/skeleton"
 import { Progress } from "../components/ui/progress"
-import { useState, useEffect } from 'react'
 
 const fetchCharacters = async (): Promise<Character[]> => {
   const response = await fetch('/api/characters')
@@ -19,7 +18,6 @@ const fetchCharacters = async (): Promise<Character[]> => {
 }
 
 export default function Characters() {
-  const [progress, setProgress] = useState(0)
   const queryClient = useQueryClient()
   const { data: characters = [], isLoading, error } = useQuery<Character[]>('characters', fetchCharacters)
 
@@ -47,30 +45,13 @@ export default function Characters() {
     }
   )
 
-  useEffect(() => {
-    if (isLoading) {
-      const timer = setInterval(() => {
-        setProgress((oldProgress) => {
-          const newProgress = Math.min(oldProgress + 10, 90)
-          return newProgress >= 90 ? 90 : newProgress
-        })
-      }, 500)
-      return () => clearInterval(timer)
-    } else {
-      setProgress(100)
-    }
-  }, [isLoading])
-
   if (error) return <div>Error: {(error as Error).message}</div>
 
   return (
     <div className="p-8">
       <h1 className="text-3xl font-bold mb-6">Character Management</h1>
       {isLoading ? (
-        <>
-          <Progress value={progress} className="w-full mb-4" />
-          <Skeleton className="h-[400px] w-full" />
-        </>
+        <Progress value={75} className="w-full mb-4" />
       ) : (
         <Table>
           <TableHeader>
@@ -115,9 +96,7 @@ export default function Characters() {
         {isLoading ? (
           <Skeleton className="h-[100px] w-full" />
         ) : (
-          <AddCharacterForm onAddCharacter={(id) => addMutation.mutate(id)} getCharacterName={function (): Promise<string> {
-              throw new Error('Function not implemented.')
-            } } />
+          <AddCharacterForm onAddCharacter={(id) => addMutation.mutate(id)} />
         )}
       </div>
     </div>

@@ -12,6 +12,7 @@ import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert"
 import { Skeleton } from "../components/ui/skeleton"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card"
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "../components/ui/chart"
+import { Progress } from "../components/ui/progress"
 
 const fetchRegions = async (): Promise<Region[]> => {
   const response = await fetch('/api/regions')
@@ -138,7 +139,7 @@ export default function Dashboard() {
         </AlertDescription>
       </Alert>
       {isRegionsLoading ? (
-        <Skeleton className="w-full h-[200px]" />
+        <Progress value={33} className="w-full mb-4" />
       ) : (
         <>
           <FilterControls

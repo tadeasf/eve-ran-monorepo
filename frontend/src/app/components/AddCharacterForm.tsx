@@ -4,19 +4,15 @@ import { Input } from "./ui/input"
 
 interface AddCharacterFormProps {
   onAddCharacter: (characterId: number) => void
-  getCharacterName: (characterId: number) => Promise<string>
 }
 
-export default function AddCharacterForm({ onAddCharacter, getCharacterName }: AddCharacterFormProps) {
+export default function AddCharacterForm({ onAddCharacter }: AddCharacterFormProps) {
   const [characterId, setCharacterId] = useState('')
-  const [characterName, setCharacterName] = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (characterId) {
       const id = Number(characterId)
-      const name = await getCharacterName(id)
-      setCharacterName(name)
       onAddCharacter(id)
       setCharacterId('')
     }
@@ -33,9 +29,6 @@ export default function AddCharacterForm({ onAddCharacter, getCharacterName }: A
         />
         <Button type="submit">Add Character</Button>
       </div>
-      {characterName && (
-        <p className="text-sm text-gray-500">Character Name: {characterName}</p>
-      )}
     </form>
   )
 }
