@@ -49,15 +49,39 @@ export default function Characters() {
   )
 
   const getCharacterName = async (characterId: number) => {
-    const response = await fetch(`/api/characters/name/${characterId}`)
-    if (!response.ok) {
-      throw new Error('Failed to fetch character name')
+    try {
+      // First, try to fetch from our API
+      const response = await fetch(`/api/characters/name/${characterId}`)
+      if (response.ok) {
+        const data = await response.json()
+        return data.name
+      }
+    } catch (error) {
+      console.error('Error fetching character name from API:', error)
     }
-    const data = await response.json()
-    if (data.error) {
-      throw new Error(data.error)
+
+    // If API fetch fails, fallback to zKillboard
+    try {
+      const zkillResponse = await fetch(`https://zkillboard.com/character/${characterId}/`)
+      if (zkillResponse.ok) {
+        const html = await zkillResponse.text()
+        const nameMatch = html.match(/<meta name="description" content="([^:]+):/)
+        const name = nameMatch ? nameMatch[1].trim() : 'Unknown'
+
+        // Cache the name in our backend
+        await fetch('/api/characters/name/cache', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: characterId, name }),
+        })
+
+        return name
+      }
+    } catch (error) {
+      console.error('Error fetching character name from zKillboard:', error)
     }
-    return data.name
+
+    throw new Error('Failed to fetch character name')
   }
 
   useEffect(() => {
