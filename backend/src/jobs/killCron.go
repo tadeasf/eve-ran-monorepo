@@ -14,7 +14,7 @@ func StartKillCron() {
 	killCron = cron.New()
 
 	// Run the job every hour
-	_, err := killCron.AddFunc("@every 5m", queueNewKillFetches)
+	_, err := killCron.AddFunc("@every 30s", queueNewKillFetches)
 	if err != nil {
 		log.Printf("Error adding kill fetch cron job: %v", err)
 		return
