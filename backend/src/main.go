@@ -10,6 +10,7 @@ import (
 	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/jobs"
 	"github.com/tadeasf/eve-ran/src/routes"
+	"github.com/tadeasf/eve-ran/src/utils"
 )
 
 // @title EVE Ran API
@@ -20,6 +21,7 @@ import (
 // @schemes http https
 
 func main() {
+	utils.InitLogger()
 	gin.SetMode(gin.ReleaseMode)
 
 	db.InitDB()

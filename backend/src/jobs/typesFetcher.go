@@ -13,6 +13,7 @@ import (
 	"github.com/tadeasf/eve-ran/src/db/models"
 	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
+	"github.com/tadeasf/eve-ran/src/utils"
 )
 
 const (
@@ -20,12 +21,12 @@ const (
 )
 
 func FetchAndUpdateTypes() {
-	log.Println("Starting FetchAndUpdateTypes job")
+	utils.LogToConsole("Starting FetchAndUpdateTypes job")
 	fetchAndUpdateRegions()
 	fetchAndUpdateConstellations()
 	fetchAndUpdateSystems()
 	fetchAndUpdateItems()
-	log.Println("Finished FetchAndUpdateTypes job")
+	utils.LogToConsole("Finished FetchAndUpdateTypes job")
 }
 
 func fetchAndUpdateRegions() {

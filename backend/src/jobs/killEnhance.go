@@ -8,6 +8,7 @@ import (
 
 	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/models"
+	"github.com/tadeasf/eve-ran/src/utils"
 )
 
 const esiBaseURL = "https://esi.evetech.net/latest"
@@ -16,19 +17,20 @@ func EnhanceKills() {
 	var zkills []models.Zkill
 	result := db.DB.Find(&zkills)
 	if result.Error != nil {
-		fmt.Printf("Error fetching Zkills: %v\n", result.Error)
+		utils.LogError(fmt.Sprintf("Error fetching Zkills: %v", result.Error))
 		return
 	}
+
+	utils.LogToConsole(fmt.Sprintf("Enhancing %d kills", len(zkills)))
 
 	for _, zkill := range zkills {
 		enhancedKill, err := fetchEnhancedKillData(zkill)
 		if err != nil {
-			fmt.Printf("Error enhancing kill %d: %v\n", zkill.KillmailID, err)
+			utils.LogError(fmt.Sprintf("Error enhancing kill %d: %v", zkill.KillmailID, err))
 			continue
 		}
 
-		// Log the enhancedKill data for debugging
-		fmt.Printf("Enhanced kill data: %+v\n", enhancedKill)
+		utils.LogToFile(fmt.Sprintf("Enhanced kill data: %+v", enhancedKill))
 
 		// Skip invalid killmail IDs
 		if enhancedKill.KillmailID == 0 {

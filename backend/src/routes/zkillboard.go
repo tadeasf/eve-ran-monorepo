@@ -12,6 +12,7 @@ import (
 	"github.com/tadeasf/eve-ran/src/db/models"
 	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/jobs"
+	"github.com/tadeasf/eve-ran/src/utils"
 	"gorm.io/gorm"
 )
 
@@ -86,11 +87,11 @@ func AddCharacter(c *gin.Context) {
 	// Trigger kill initialization
 	go func() {
 		if err := jobs.InitializeCharacterKills(character.ID); err != nil {
-			// Log the error, but don't return it to the client
-			fmt.Printf("Error initializing kills for character %d: %v\n", character.ID, err)
+			utils.LogError(fmt.Sprintf("Error initializing kills for character %d: %v", character.ID, err))
 		}
 	}()
 
+	utils.LogToConsole(fmt.Sprintf("Added character: %s (ID: %d)", character.Name, character.ID))
 	c.JSON(http.StatusCreated, character)
 
 }
