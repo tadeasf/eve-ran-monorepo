@@ -99,24 +99,18 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 			break
 		}
 
-		oldestKillOnPage := zkillKills[len(zkillKills)-1]
-		existingKill, err := queries.GetKillByKillmailID(oldestKillOnPage.KillmailID)
-		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return totalNewKills, fmt.Errorf("error checking existing kill %d: %v", oldestKillOnPage.KillmailID, err)
-		}
-
-		if existingKill != nil {
-			log.Printf("Oldest kill on page %d (ID: %d) already exists, stopping fetch", page, oldestKillOnPage.KillmailID)
-			break
-		}
-
-		newKills, err := processKillsPage(characterID, zkillKills)
+		newKills, allExist, err := processKillsPage(characterID, zkillKills)
 		if err != nil {
 			return totalNewKills, fmt.Errorf("error processing kills page: %v", err)
 		}
 
 		totalNewKills += newKills
 		log.Printf("Processed %d new kills on page %d for character %d", newKills, page, characterID)
+
+		if allExist {
+			log.Printf("All kills on page %d already exist, stopping fetch", page)
+			break
+		}
 
 		page++
 		time.Sleep(pageStaggerInterval)
@@ -126,20 +120,23 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 	return totalNewKills, nil
 }
 
-func processKillsPage(characterID int64, zkillKills []models.ZKillKill) (int, error) {
+func processKillsPage(characterID int64, zkillKills []models.ZKillKill) (int, bool, error) {
 	var kills []models.Kill
 	newKills := 0
+	allExist := true
 
 	for _, zkillKill := range zkillKills {
 		existingKill, err := queries.GetKillByKillmailID(zkillKill.KillmailID)
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return newKills, fmt.Errorf("error checking existing kill %d: %v", zkillKill.KillmailID, err)
+			return newKills, false, fmt.Errorf("error checking existing kill %d: %v", zkillKill.KillmailID, err)
 		}
 
 		if existingKill != nil {
 			log.Printf("Kill %d already exists, skipping", zkillKill.KillmailID)
 			continue
 		}
+
+		allExist = false
 
 		esiKill, err := fetchKillmailWithBackoff(zkillKill.KillmailID, zkillKill.ZKB.Hash)
 		if err != nil {
@@ -173,14 +170,14 @@ func processKillsPage(characterID int64, zkillKills []models.ZKillKill) (int, er
 	if len(kills) > 0 {
 		err := queries.BulkUpsertKills(kills)
 		if err != nil {
-			return newKills, fmt.Errorf("error bulk upserting kills: %v", err)
+			return newKills, false, fmt.Errorf("error bulk upserting kills: %v", err)
 		}
 		log.Printf("Successfully upserted %d new kills for character %d", len(kills), characterID)
 	} else {
 		log.Printf("No new kills found for character %d in this batch", characterID)
 	}
 
-	return newKills, nil
+	return newKills, allExist, nil
 }
 
 func fetchKillmailWithBackoff(killmailID int64, hash string) (*models.Kill, error) {
