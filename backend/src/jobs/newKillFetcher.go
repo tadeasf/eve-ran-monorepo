@@ -90,6 +90,12 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 	batchSize := 500
 	maxConcurrent := 500
 
+	// If lastKillTime is zero, set it to a very old date to fetch all kills
+	if lastKillTime.IsZero() {
+		lastKillTime = time.Date(2003, 5, 6, 0, 0, 0, 0, time.UTC) // EVE Online release date
+		log.Printf("No last kill time provided, fetching all kills since EVE Online release")
+	}
+
 	for {
 		log.Printf("Fetching page %d of kills for character %d", page, characterID)
 		zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
@@ -156,7 +162,6 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 		}
 
 		if existingKill != nil {
-			// Kill already exists, skip silently
 			continue
 		}
 
@@ -166,33 +171,30 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 			continue
 		}
 
-		if esiKill.KillTime.Before(lastKillTime) {
-			// Skip older kills silently
-			continue
-		}
+		// We'll always process the kill if lastKillTime is set to the EVE Online release date
+		if esiKill.KillTime.After(lastKillTime) {
+			kill := models.Kill{
+				KillmailID:     zkillKill.KillmailID,
+				CharacterID:    characterID,
+				KillTime:       esiKill.KillTime,
+				SolarSystemID:  esiKill.SolarSystemID,
+				LocationID:     zkillKill.ZKB.LocationID,
+				Hash:           zkillKill.ZKB.Hash,
+				FittedValue:    zkillKill.ZKB.FittedValue,
+				DroppedValue:   zkillKill.ZKB.DroppedValue,
+				DestroyedValue: zkillKill.ZKB.DestroyedValue,
+				TotalValue:     zkillKill.ZKB.TotalValue,
+				Points:         zkillKill.ZKB.Points,
+				NPC:            zkillKill.ZKB.NPC,
+				Solo:           zkillKill.ZKB.Solo,
+				Awox:           zkillKill.ZKB.Awox,
+				Victim:         esiKill.Victim,
+				Attackers:      models.AttackersJSON(esiKill.Attackers),
+			}
 
-		kill := models.Kill{
-			KillmailID:     zkillKill.KillmailID,
-			CharacterID:    characterID,
-			KillTime:       esiKill.KillTime,
-			SolarSystemID:  esiKill.SolarSystemID,
-			LocationID:     zkillKill.ZKB.LocationID,
-			Hash:           zkillKill.ZKB.Hash,
-			FittedValue:    zkillKill.ZKB.FittedValue,
-			DroppedValue:   zkillKill.ZKB.DroppedValue,
-			DestroyedValue: zkillKill.ZKB.DestroyedValue,
-			TotalValue:     zkillKill.ZKB.TotalValue,
-			Points:         zkillKill.ZKB.Points,
-			NPC:            zkillKill.ZKB.NPC,
-			Solo:           zkillKill.ZKB.Solo,
-			Awox:           zkillKill.ZKB.Awox,
-			Victim:         esiKill.Victim,
-			Attackers:      models.AttackersJSON(esiKill.Attackers),
+			kills = append(kills, kill)
+			newKills++
 		}
-
-		kills = append(kills, kill)
-		newKills++
-		log.Printf("Added new kill %d for character %d", zkillKill.KillmailID, characterID)
 	}
 
 	if len(kills) > 0 {
