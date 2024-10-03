@@ -273,20 +273,22 @@ func FetchKillsForCharacter(characterID int64) {
 	lastKillTime, err := db.GetLastKillTimeForCharacter(characterID)
 	if err != nil {
 		log.Printf("Error getting last kill time for character %d: %v", characterID, err)
-		return
+		lastKillTime = time.Time{}
 	}
 	log.Printf("Last kill time for character %d: %v", characterID, lastKillTime)
 
 	page := 1
 	totalNewKills := 0
+	isNewCharacter := lastKillTime.IsZero()
 
 	for {
 		log.Printf("Fetching page %d for character %d", page, characterID)
 		url := fmt.Sprintf("https://zkillboard.com/api/characterID/%d/page/%d/", characterID, page)
 
 		var zkillResponse []struct {
-			KillmailID int64 `json:"killmail_id"`
-			ZKB        struct {
+			KillmailID   int64  `json:"killmail_id"`
+			KillmailTime string `json:"killmail_time"`
+			ZKB          struct {
 				LocationID     int64   `json:"locationID"`
 				Hash           string  `json:"hash"`
 				FittedValue    float64 `json:"fittedValue"`
@@ -321,9 +323,21 @@ func FetchKillsForCharacter(characterID int64) {
 
 		newKills := 0
 		for _, zkill := range zkillResponse {
+			killTime, err := time.Parse("2006-01-02T15:04:05Z", zkill.KillmailTime)
+			if err != nil {
+				log.Printf("Error parsing kill time for killmail %d: %v", zkill.KillmailID, err)
+				continue
+			}
+
+			if !isNewCharacter && killTime.Before(lastKillTime) || killTime.Equal(lastKillTime) {
+				log.Printf("Reached already processed kills for character %d, stopping", characterID)
+				return
+			}
+
 			kill := models.Kill{
 				KillmailID:     zkill.KillmailID,
 				CharacterID:    characterID,
+				KillTime:       killTime,
 				LocationID:     zkill.ZKB.LocationID,
 				Hash:           zkill.ZKB.Hash,
 				FittedValue:    zkill.ZKB.FittedValue,
