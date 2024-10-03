@@ -11,7 +11,7 @@ import (
 )
 
 func FetchAndStoreConstellations(c *gin.Context) {
-	batchSize := 100
+	batchSize := 250
 	totalConstellations := 0
 
 	for {

@@ -10,7 +10,7 @@ import (
 )
 
 func FetchAndStoreSystems(c *gin.Context) {
-	batchSize := 100
+	batchSize := 1000
 	totalSystems := 0
 
 	for {
