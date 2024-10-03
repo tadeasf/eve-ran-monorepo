@@ -136,12 +136,14 @@ func fetchAndUpdateSystems() {
 
 	systemsChan := make(chan *models.System, len(ids))
 	var wg sync.WaitGroup
+	rateLimiter := time.Tick(100 * time.Millisecond)
 
 	for _, id := range ids {
 		if !existingMap[id] {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()
+				<-rateLimiter // Wait for rate limiter
 				system := fetchSystem(id)
 				if system != nil {
 					systemsChan <- system
@@ -183,14 +185,26 @@ func fetchAndUpdateSystems() {
 
 func fetchSystem(id int) *models.System {
 	url := baseURL + "/universe/systems/" + strconv.Itoa(id) + "/"
-	resp, err := http.Get(url)
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	resp, err := client.Get(url)
 	if err != nil {
 		log.Printf("Error fetching system %d: %v", id, err)
 		return nil
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Error fetching system %d: Status code %d", id, resp.StatusCode)
+		return nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Error reading response body for system %d: %v", id, err)
+		return nil
+	}
+
 	var system models.System
 	err = json.Unmarshal(body, &system)
 	if err != nil {
