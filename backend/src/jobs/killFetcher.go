@@ -23,22 +23,6 @@ var (
 	jobRunning bool
 )
 
-type zKillKill struct {
-	KillmailID int64 `json:"killmail_id"`
-	ZKB        struct {
-		LocationID     int64   `json:"locationID"`
-		Hash           string  `json:"hash"`
-		FittedValue    float64 `json:"fittedValue"`
-		DroppedValue   float64 `json:"droppedValue"`
-		DestroyedValue float64 `json:"destroyedValue"`
-		TotalValue     float64 `json:"totalValue"`
-		Points         int     `json:"points"`
-		NPC            bool    `json:"npc"`
-		Solo           bool    `json:"solo"`
-		Awox           bool    `json:"awox"`
-	} `json:"zkb"`
-}
-
 func StartKillFetcherJob() {
 	c := cron.New()
 	c.AddFunc("@every 10min", func() {
@@ -119,12 +103,6 @@ func FetchKillsForAllCharacters() {
 		log.Println("Kill fetcher job is already running, skipping this run")
 	}
 }
-
-const (
-	initialConcurrency = 2
-	maxConcurrency     = 200
-	minConcurrency     = 2
-)
 
 func fetchKillsForCharacter(characterID int64) {
 	defer func() {
@@ -225,20 +203,6 @@ func enrichKillWithESIData(kill *models.Kill) {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 func FetchAllKillsForCharacter(characterID int64) {
 	log.Printf("Starting full kill fetch for character %d", characterID)
 	fetchKillsForCharacter(characterID)
@@ -304,21 +268,20 @@ func FetchKillsForCharacter(characterID int64) {
 			return
 		}
 
+		if len(zkillResponse) == 0 {
+			log.Printf("No more kills found for character %d", characterID)
+			break
+		}
+
 		newKills := 0
 		for _, zkill := range zkillResponse {
-			killTime := time.Time{}
-			if zkill.KillmailTime != "" {
-				parsedTime, err := time.Parse("2006-01-02T15:04:05Z", zkill.KillmailTime)
-				if err != nil {
-					log.Printf("Error parsing kill time for killmail %d: %v", zkill.KillmailID, err)
-					continue
-				}
-				killTime = parsedTime
-			} else {
-				log.Printf("Warning: Empty killmail time for killmail %d", zkill.KillmailID)
+			killTime, err := time.Parse("2006-01-02T15:04:05Z", zkill.KillmailTime)
+			if err != nil {
+				log.Printf("Error parsing kill time for killmail %d: %v", zkill.KillmailID, err)
+				killTime = time.Now() // Use current time if parsing fails
 			}
 
-			if !isNewCharacter && killTime.Before(lastKillTime) || killTime.Equal(lastKillTime) {
+			if !isNewCharacter && killTime.Before(lastKillTime) {
 				log.Printf("Reached already processed kills for character %d, stopping", characterID)
 				return
 			}
@@ -326,7 +289,7 @@ func FetchKillsForCharacter(characterID int64) {
 			kill := models.Kill{
 				KillmailID:     zkill.KillmailID,
 				CharacterID:    characterID,
-				KillTime:       killTime,
+				KillTime:       killTime, // Use the parsed killTime
 				LocationID:     zkill.ZKB.LocationID,
 				Hash:           zkill.ZKB.Hash,
 				FittedValue:    zkill.ZKB.FittedValue,
@@ -361,15 +324,13 @@ func FetchKillsForCharacter(characterID int64) {
 			}
 		}
 
-		log.Printf("Inserted %d new kills for character %d on page %d", newKills, characterID, page)
-
 		if newKills == 0 {
 			log.Printf("No new kills on page %d for character %d, stopping", page, characterID)
 			break
 		}
 
 		page++
-		time.Sleep(1 * time.Second) // Add a delay to avoid hitting rate limits
+		time.Sleep(1 * time.Second) // Rate limiting
 	}
 
 	log.Printf("Finished fetching kills for character %d. Total new kills: %d", characterID, totalNewKills)
