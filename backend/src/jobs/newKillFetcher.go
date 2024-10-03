@@ -86,9 +86,9 @@ func FetchAllKillsForCharacter(characterID int64) {
 func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, error) {
 	log.Printf("Starting to fetch new kills for character %d since %v", characterID, lastKillTime)
 	totalNewKills := int32(0)
-	page := 1
+	maxPageConcurrency := 10
+	maxKillConcurrency := 200
 	batchSize := 1
-	maxConcurrent := 1000
 
 	// If lastKillTime is zero, set it to a very old date to fetch all kills
 	if lastKillTime.IsZero() {
@@ -96,58 +96,79 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 		log.Printf("No last kill time provided, fetching all kills since EVE Online release")
 	}
 
-	for {
-		log.Printf("Fetching page %d of kills for character %d", page, characterID)
-		zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
-		if err != nil {
-			log.Printf("Error fetching kills from zKillboard for character %d: %v", characterID, err)
-			return int(totalNewKills), err
-		}
+	var pageWg sync.WaitGroup
+	pageSem := make(chan struct{}, maxPageConcurrency)
+	killSem := make(chan struct{}, maxKillConcurrency)
 
-		if len(zkillKills) == 0 {
-			log.Printf("No more kills found for character %d", characterID)
-			break
-		}
+	for page := 1; page <= maxPageConcurrency; page++ {
+		pageWg.Add(1)
+		pageSem <- struct{}{}
+		go func(currentPage int) {
+			defer pageWg.Done()
+			defer func() { <-pageSem }()
 
-		log.Printf("Processing %d kills for character %d", len(zkillKills), characterID)
-
-		sem := make(chan bool, maxConcurrent)
-		var wg sync.WaitGroup
-
-		for i := 0; i < len(zkillKills); i += batchSize {
-			end := i + batchSize
-			if end > len(zkillKills) {
-				end = len(zkillKills)
-			}
-
-			wg.Add(1)
-			sem <- true
-			go func(batch []models.ZKillKill) {
-				defer wg.Done()
-				defer func() { <-sem }()
-
-				newKillsInBatch, err := processNewKillsBatch(batch, characterID, lastKillTime)
-				if err != nil {
-					log.Printf("Error processing batch for character %d: %v", characterID, err)
-				} else {
-					atomic.AddInt32(&totalNewKills, int32(newKillsInBatch))
+			newKills, err := fetchKillsForPage(characterID, currentPage, lastKillTime, killSem, batchSize)
+			if err != nil {
+				if err == ErrNoMoreKills {
+					log.Printf("No more kills found for character %d on page %d", characterID, currentPage)
+					return
 				}
-			}(zkillKills[i:end])
-		}
-
-		wg.Wait()
-		log.Printf("Processed %d new kills for character %d on page %d", atomic.LoadInt32(&totalNewKills), characterID, page)
-
-		if len(zkillKills) < 200 {
-			log.Printf("Less than 200 kills found on page %d for character %d, stopping", page, characterID)
-			break
-		}
-
-		page++
+				log.Printf("Error fetching kills for character %d on page %d: %v", characterID, currentPage, err)
+				return
+			}
+			atomic.AddInt32(&totalNewKills, int32(newKills))
+		}(page)
 	}
+
+	pageWg.Wait()
 
 	log.Printf("Finished fetching new kills for character %d. Total new kills: %d", characterID, totalNewKills)
 	return int(totalNewKills), nil
+}
+
+var ErrNoMoreKills = errors.New("no more kills")
+
+func fetchKillsForPage(characterID int64, page int, lastKillTime time.Time, sem chan struct{}, batchSize int) (int, error) {
+	log.Printf("Fetching page %d of kills for character %d", page, characterID)
+	zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
+	if err != nil {
+		return 0, err
+	}
+
+	if len(zkillKills) == 0 {
+		return 0, ErrNoMoreKills
+	}
+
+	log.Printf("Processing %d kills for character %d on page %d", len(zkillKills), characterID, page)
+
+	var wg sync.WaitGroup
+	newKillsInPage := int32(0)
+
+	for i := 0; i < len(zkillKills); i += batchSize {
+		end := i + batchSize
+		if end > len(zkillKills) {
+			end = len(zkillKills)
+		}
+
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(batch []models.ZKillKill) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			newKillsInBatch, err := processNewKillsBatch(batch, characterID, lastKillTime)
+			if err != nil {
+				log.Printf("Error processing batch for character %d on page %d: %v", characterID, page, err)
+			} else {
+				atomic.AddInt32(&newKillsInPage, int32(newKillsInBatch))
+			}
+		}(zkillKills[i:end])
+	}
+
+	wg.Wait()
+	log.Printf("Processed %d new kills for character %d on page %d", newKillsInPage, characterID, page)
+
+	return int(newKillsInPage), nil
 }
 
 func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillTime time.Time) (int, error) {
