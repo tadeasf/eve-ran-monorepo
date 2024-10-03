@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
+import fetch from 'node-fetch'
 
 async function fetchCharacterName(characterId: number): Promise<string> {
-  const response = await fetch(`https://zkillboard.com/character/${characterId}/`)
+  const response = await fetch(`https://zkillboard.com/character/${characterId}/`, {
+    headers: {
+      'User-Agent': 'EVE RAN Application (https://github.com/tadeasfort/eve-ran-monorepo)'
+    }
+  })
   if (!response.ok) {
-    throw new Error('Failed to fetch character name')
+    throw new Error(`Failed to fetch character name: ${response.status} ${response.statusText}`)
   }
   const html = await response.text()
   const nameMatch = html.match(/<meta name="description" content="([^:]+):/)
@@ -22,6 +27,14 @@ export async function GET(
 
   try {
     const name = await fetchCharacterName(parseInt(characterId, 10))
+    
+    // Cache the name in our backend
+    await fetch('https://ran.api.next.tadeasfort.com/characters/name/cache', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: characterId, name }),
+    })
+
     return NextResponse.json({ name })
   } catch (error) {
     console.error('Error fetching character name:', error)
