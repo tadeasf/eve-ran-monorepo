@@ -2,14 +2,15 @@ package jobs
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/tadeasf/eve-ran/src/db/models"
 	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
+	"gorm.io/gorm"
 )
 
 var (
@@ -82,140 +83,55 @@ func FetchKillsForCharacter(characterID int64) (int, error) {
 
 func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, error) {
 	log.Printf("Starting to fetch new kills for character %d since %v", characterID, lastKillTime)
-	totalNewKills := int32(0)
-	maxPageConcurrency := 10
-	maxKillConcurrency := 5
-	batchSize := 1
+	totalNewKills := 0
+	page := 1
 	pageStaggerInterval := 500 * time.Millisecond
 
-	if lastKillTime.IsZero() {
-		lastKillTime = time.Date(2003, 5, 6, 0, 0, 0, 0, time.UTC)
-		log.Printf("No last kill time provided, fetching all kills since EVE Online release")
-	}
-
-	var pageWg sync.WaitGroup
-	pageSem := make(chan struct{}, maxPageConcurrency)
-	killSem := make(chan struct{}, maxKillConcurrency)
-	errorChan := make(chan error, maxPageConcurrency)
-
-	page := 1
-	continueFetching := true
-	oldestKillTime := time.Now()
-
-	for continueFetching {
-		pageWg.Add(1)
-		pageSem <- struct{}{}
-		go func(currentPage int) {
-			defer pageWg.Done()
-			defer func() { <-pageSem }()
-
-			time.Sleep(time.Duration(currentPage-1) * pageStaggerInterval)
-
-			newKills, pageOldestKillTime, reachedOldKills, err := fetchKillsForPage(characterID, currentPage, lastKillTime, killSem, batchSize)
-			if err != nil {
-				if err == ErrNoMoreKills {
-					log.Printf("No more kills found for character %d on page %d", characterID, currentPage)
-					continueFetching = false
-					return
-				}
-				log.Printf("Error fetching kills for character %d on page %d: %v", characterID, currentPage, err)
-				errorChan <- err
-				return
-			}
-			atomic.AddInt32(&totalNewKills, int32(newKills))
-
-			if pageOldestKillTime.Before(oldestKillTime) {
-				oldestKillTime = pageOldestKillTime
-			}
-
-			if newKills == 0 {
-				log.Printf("No new kills found for character %d on page %d, stopping fetch", characterID, currentPage)
-				continueFetching = false
-				return
-			}
-
-			if reachedOldKills {
-				log.Printf("Reached kills older than last known kill for character %d, stopping fetch", characterID)
-				continueFetching = false
-				return
-			}
-		}(page)
-
-		pageWg.Wait()
-
-		if len(errorChan) > 0 {
-			return int(totalNewKills), <-errorChan
+	for {
+		zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
+		if err != nil {
+			return totalNewKills, fmt.Errorf("error fetching kills from zKillboard: %v", err)
 		}
 
-		if continueFetching {
-			page++
+		if len(zkillKills) == 0 {
+			log.Printf("No more kills found for character %d", characterID)
+			break
 		}
+
+		newKills, oldestKillTime, err := processKillsPage(characterID, zkillKills, lastKillTime)
+		if err != nil {
+			return totalNewKills, fmt.Errorf("error processing kills page: %v", err)
+		}
+
+		totalNewKills += newKills
+
+		if oldestKillTime.Before(lastKillTime) || newKills == 0 {
+			log.Printf("Reached kills older than last known kill or no new kills for character %d, stopping fetch", characterID)
+			break
+		}
+
+		page++
+		time.Sleep(pageStaggerInterval)
 	}
 
 	log.Printf("Finished fetching new kills for character %d. Total new kills: %d", characterID, totalNewKills)
-	return int(totalNewKills), nil
+	return totalNewKills, nil
 }
 
-var ErrNoMoreKills = errors.New("no more kills")
-
-func fetchKillsForPage(characterID int64, page int, lastKillTime time.Time, sem chan struct{}, batchSize int) (int, time.Time, bool, error) {
-	log.Printf("Fetching page %d of kills for character %d", page, characterID)
-	zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
-	if err != nil {
-		return 0, time.Time{}, false, err
-	}
-
-	if len(zkillKills) == 0 {
-		return 0, time.Time{}, false, ErrNoMoreKills
-	}
-
-	log.Printf("Processing %d kills for character %d on page %d", len(zkillKills), characterID, page)
-
-	var wg sync.WaitGroup
-	newKillsInPage := int32(0)
-	oldestKillTime := time.Now()
-	reachedOldKills := false
-
-	for i := 0; i < len(zkillKills); i += batchSize {
-		end := i + batchSize
-		if end > len(zkillKills) {
-			end = len(zkillKills)
-		}
-
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(batch []models.ZKillKill) {
-			defer wg.Done()
-			defer func() { <-sem }()
-
-			newKillsInBatch, batchOldestKillTime, batchReachedOldKills := processNewKillsBatch(batch, characterID, lastKillTime)
-			atomic.AddInt32(&newKillsInPage, int32(newKillsInBatch))
-			if batchOldestKillTime.Before(oldestKillTime) {
-				oldestKillTime = batchOldestKillTime
-			}
-			if batchReachedOldKills {
-				reachedOldKills = true
-			}
-		}(zkillKills[i:end])
-	}
-
-	wg.Wait()
-	log.Printf("Processed %d new kills for character %d on page %d", newKillsInPage, characterID, page)
-
-	return int(newKillsInPage), oldestKillTime, reachedOldKills, nil
-}
-
-func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillTime time.Time) (int, time.Time, bool) {
+func processKillsPage(characterID int64, zkillKills []models.ZKillKill, lastKillTime time.Time) (int, time.Time, error) {
 	var kills []models.Kill
 	newKills := 0
 	oldestKillTime := time.Now()
-	reachedOldKills := false
 
-	for _, zkillKill := range batch {
+	for _, zkillKill := range zkillKills {
+		killTime := time.Unix(zkillKill.KillmailID, 0) // Assuming KillmailID is a Unix timestamp
+		if killTime.Before(lastKillTime) {
+			return newKills, oldestKillTime, nil
+		}
+
 		existingKill, err := queries.GetKillByKillmailID(zkillKill.KillmailID)
-		if err != nil {
-			log.Printf("Error checking existing kill %d: %v", zkillKill.KillmailID, err)
-			continue
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return newKills, oldestKillTime, fmt.Errorf("error checking existing kill %d: %v", zkillKill.KillmailID, err)
 		}
 
 		if existingKill != nil {
@@ -228,51 +144,44 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 			continue
 		}
 
-		if esiKill.KillTime.After(lastKillTime) {
-			kill := models.Kill{
-				KillmailID:     zkillKill.KillmailID,
-				CharacterID:    characterID,
-				KillTime:       esiKill.KillTime,
-				SolarSystemID:  esiKill.SolarSystemID,
-				LocationID:     zkillKill.ZKB.LocationID,
-				Hash:           zkillKill.ZKB.Hash,
-				FittedValue:    zkillKill.ZKB.FittedValue,
-				DroppedValue:   zkillKill.ZKB.DroppedValue,
-				DestroyedValue: zkillKill.ZKB.DestroyedValue,
-				TotalValue:     zkillKill.ZKB.TotalValue,
-				Points:         zkillKill.ZKB.Points,
-				NPC:            zkillKill.ZKB.NPC,
-				Solo:           zkillKill.ZKB.Solo,
-				Awox:           zkillKill.ZKB.Awox,
-				Victim:         esiKill.Victim,
-				Attackers:      models.AttackersJSON(esiKill.Attackers),
-			}
+		kill := models.Kill{
+			KillmailID:     zkillKill.KillmailID,
+			CharacterID:    characterID,
+			KillTime:       esiKill.KillTime,
+			SolarSystemID:  esiKill.SolarSystemID,
+			LocationID:     zkillKill.ZKB.LocationID,
+			Hash:           zkillKill.ZKB.Hash,
+			FittedValue:    zkillKill.ZKB.FittedValue,
+			DroppedValue:   zkillKill.ZKB.DroppedValue,
+			DestroyedValue: zkillKill.ZKB.DestroyedValue,
+			TotalValue:     zkillKill.ZKB.TotalValue,
+			Points:         zkillKill.ZKB.Points,
+			NPC:            zkillKill.ZKB.NPC,
+			Solo:           zkillKill.ZKB.Solo,
+			Awox:           zkillKill.ZKB.Awox,
+			Victim:         esiKill.Victim,
+			Attackers:      models.AttackersJSON(esiKill.Attackers),
+		}
 
-			kills = append(kills, kill)
-			newKills++
+		kills = append(kills, kill)
+		newKills++
 
-			if esiKill.KillTime.Before(oldestKillTime) {
-				oldestKillTime = esiKill.KillTime
-			}
-		} else {
-			reachedOldKills = true
-			log.Printf("Reached kill %d which is older than or equal to last known kill, will stop after processing current batch", zkillKill.KillmailID)
-			break
+		if esiKill.KillTime.Before(oldestKillTime) {
+			oldestKillTime = esiKill.KillTime
 		}
 	}
 
 	if len(kills) > 0 {
 		err := queries.BulkUpsertKills(kills)
 		if err != nil {
-			log.Printf("Error bulk upserting kills: %v", err)
-			return 0, oldestKillTime, reachedOldKills
+			return newKills, oldestKillTime, fmt.Errorf("error bulk upserting kills: %v", err)
 		}
 		log.Printf("Successfully upserted %d new kills for character %d", len(kills), characterID)
 	} else {
 		log.Printf("No new kills found for character %d in this batch", characterID)
 	}
 
-	return newKills, oldestKillTime, reachedOldKills
+	return newKills, oldestKillTime, nil
 }
 
 func fetchKillmailWithBackoff(killmailID int64, hash string) (*models.Kill, error) {
