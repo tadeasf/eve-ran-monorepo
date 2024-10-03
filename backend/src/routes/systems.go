@@ -10,7 +10,7 @@ import (
 )
 
 func FetchAndStoreSystems(c *gin.Context) {
-	systems, err := services.FetchAllSystems(30) // Use 30 concurrent requests
+	systems, err := services.FetchAllSystems(100)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
