@@ -8,6 +8,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -454,4 +455,8 @@ func fetchKillmailFromESIWithRetry(killmailID int64, hash string) (*models.Kill,
 		Victim:        esiKill.Victim,
 		Attackers:     esiKill.Attackers,
 	}, nil
+}
+
+func IsESITimeout(err error) bool {
+	return strings.Contains(err.Error(), "Timeout contacting tranquility")
 }

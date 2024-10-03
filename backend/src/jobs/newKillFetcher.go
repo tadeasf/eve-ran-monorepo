@@ -14,9 +14,11 @@ import (
 )
 
 var (
-	fetchQueue = make(chan int64, 100)
-	jobMutex   sync.Mutex
-	jobRunning bool
+	fetchQueue      = make(chan int64, 100)
+	jobMutex        sync.Mutex
+	jobRunning      bool
+	backoffMutex    sync.Mutex
+	lastBackoffTime time.Time
 )
 
 func StartKillFetcherJob() {
@@ -90,9 +92,8 @@ func FetchNewKillsForCharacter(characterID int64, lastKillTime time.Time) (int, 
 	maxKillConcurrency := 200
 	batchSize := 1
 
-	// If lastKillTime is zero, set it to a very old date to fetch all kills
 	if lastKillTime.IsZero() {
-		lastKillTime = time.Date(2003, 5, 6, 0, 0, 0, 0, time.UTC) // EVE Online release date
+		lastKillTime = time.Date(2003, 5, 6, 0, 0, 0, 0, time.UTC)
 		log.Printf("No last kill time provided, fetching all kills since EVE Online release")
 	}
 
@@ -186,13 +187,12 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 			continue
 		}
 
-		esiKill, err := services.FetchKillmailFromESI(zkillKill.KillmailID, zkillKill.ZKB.Hash)
+		esiKill, err := fetchKillmailWithBackoff(zkillKill.KillmailID, zkillKill.ZKB.Hash)
 		if err != nil {
 			log.Printf("Error fetching killmail %d from ESI: %v", zkillKill.KillmailID, err)
 			continue
 		}
 
-		// We'll always process the kill if lastKillTime is set to the EVE Online release date
 		if esiKill.KillTime.After(lastKillTime) {
 			kill := models.Kill{
 				KillmailID:     zkillKill.KillmailID,
@@ -230,4 +230,29 @@ func processNewKillsBatch(batch []models.ZKillKill, characterID int64, lastKillT
 	}
 
 	return newKills, nil
+}
+
+func fetchKillmailWithBackoff(killmailID int64, hash string) (*models.Kill, error) {
+	backoffMutex.Lock()
+	if time.Since(lastBackoffTime) < 15*time.Second {
+		sleepTime := 15*time.Second - time.Since(lastBackoffTime)
+		backoffMutex.Unlock()
+		time.Sleep(sleepTime)
+	} else {
+		backoffMutex.Unlock()
+	}
+
+	esiKill, err := services.FetchKillmailFromESI(killmailID, hash)
+	if err != nil {
+		if services.IsESITimeout(err) {
+			backoffMutex.Lock()
+			lastBackoffTime = time.Now()
+			backoffMutex.Unlock()
+			log.Printf("ESI timeout encountered, backing off for 15 seconds")
+			time.Sleep(15 * time.Second)
+			return fetchKillmailWithBackoff(killmailID, hash) // Retry after backoff
+		}
+		return nil, err
+	}
+	return esiKill, nil
 }
