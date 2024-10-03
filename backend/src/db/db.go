@@ -231,3 +231,18 @@ func IsInitialFetchForCharacter(characterID int64) (bool, error) {
 	}
 	return count == 0, nil
 }
+
+func BatchUpsertSystems(systems []*models.System) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		for _, system := range systems {
+			err := tx.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "system_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"constellation_id", "name", "security_class", "security_status", "star_id", "planets", "stargates", "stations", "position"}),
+			}).Create(system).Error
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

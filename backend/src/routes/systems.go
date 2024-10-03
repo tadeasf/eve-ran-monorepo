@@ -10,21 +10,36 @@ import (
 )
 
 func FetchAndStoreSystems(c *gin.Context) {
-	systems, err := services.FetchAllSystems(100)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
+	batchSize := 100
+	totalSystems := 0
 
-	for _, system := range systems {
-		err = db.UpsertSystem(system)
+	for {
+		// Fetch a batch of systems
+		systems, err := services.FetchAllSystems(batchSize)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		if len(systems) == 0 {
+			break // No more systems to fetch
+		}
+
+		// Batch upsert systems
+		err = db.BatchUpsertSystems(systems)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		totalSystems += len(systems)
+
+		if len(systems) < batchSize {
+			break // Last batch
+		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Systems fetched and stored successfully", "count": len(systems)})
+	c.JSON(http.StatusOK, gin.H{"message": "Systems fetched and stored successfully", "count": totalSystems})
 }
 
 func GetAllSystems(c *gin.Context) {
