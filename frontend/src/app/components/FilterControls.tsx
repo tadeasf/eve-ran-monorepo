@@ -55,9 +55,9 @@ export default function FilterControls({
   }
 
   return (
-    <div className="flex space-x-4 mb-4">
+    <div className="flex flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0 mb-4">
       {isLoading || regions.length === 0 ? (
-        <Skeleton className="w-[200px] h-10" />
+        <Skeleton className="w-full sm:w-[200px] h-10" />
       ) : (
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
@@ -65,7 +65,7 @@ export default function FilterControls({
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className="w-[200px] justify-between"
+              className="w-full sm:w-[200px] justify-between"
             >
               {selectedRegions.length > 0
                 ? `${selectedRegions.length} selected`
@@ -73,7 +73,7 @@ export default function FilterControls({
               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-[200px] p-0">
+          <PopoverContent className="w-full sm:w-[200px] p-0">
             <Command>
               <CommandInput placeholder="Search regions..." />
               <CommandEmpty>No region found.</CommandEmpty>
@@ -102,26 +102,26 @@ export default function FilterControls({
         </Popover>
       )}
       {isLoading ? (
-        <Skeleton className="w-[200px] h-10" />
+        <Skeleton className="w-full sm:w-[200px] h-10" />
       ) : (
         <input
           type="date"
           value={startDate}
           onChange={(e) => setStartDate(e.target.value)}
-          className="border rounded p-2"
+          className="w-full sm:w-[200px] border rounded p-2"
         />
       )}
       {isLoading ? (
-        <Skeleton className="w-[200px] h-10" />
+        <Skeleton className="w-full sm:w-[200px] h-10" />
       ) : (
         <input
           type="date"
           value={endDate}
           onChange={(e) => setEndDate(e.target.value)}
-          className="border rounded p-2"
+          className="w-full sm:w-[200px] border rounded p-2"
         />
       )}
-      <Button onClick={onApplyFilters} disabled={isLoading}>
+      <Button onClick={onApplyFilters} disabled={isLoading} className="w-full sm:w-auto">
         {isLoading ? <Progress value={33} className="w-16" /> : "Apply Filters"}
       </Button>
     </div>

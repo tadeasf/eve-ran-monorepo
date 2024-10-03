@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useQuery } from 'react-query'
 import { TrendingUp } from "lucide-react"
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
+import { Area, AreaChart, CartesianGrid, XAxis, ResponsiveContainer } from "recharts"
 import CharacterTable from '../components/CharacterTable'
 import FilterControls from '../components/FilterControls'
 import { Region, CharacterStats, Character, KillmailData } from '../../lib/types'
@@ -131,15 +131,15 @@ export default function Dashboard() {
   } satisfies ChartConfig
 
   return (
-    <div className="container mx-auto p-4">
-      <Alert className="mb-4">
+    <div className="container mx-auto px-4 py-8">
+      <Alert className="mb-8">
         <AlertTitle>Welcome to the EVE Ran Dashboard</AlertTitle>
         <AlertDescription>
           Use the filters below to narrow down your character statistics.
         </AlertDescription>
       </Alert>
       {isRegionsLoading ? (
-        <Progress value={33} className="w-full mb-4" />
+        <Progress value={33} className="w-full mb-8" />
       ) : (
         <>
           <FilterControls
@@ -154,11 +154,13 @@ export default function Dashboard() {
             isLoading={isLoading}
           />
           {isLoading ? (
-            <Skeleton className="w-full h-[400px]" />
+            <Skeleton className="w-full h-[400px] mb-8" />
           ) : (
             <>
-              <CharacterTable characters={characters} />
-              <Card className="mt-8">
+              <div className="mb-8">
+                <CharacterTable characters={characters} />
+              </div>
+              <Card className="mb-8">
                 <CardHeader>
                   <CardTitle>Total Kills Over Time</CardTitle>
                   <CardDescription>
@@ -167,34 +169,32 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <ChartContainer config={chartConfig}>
-                    <AreaChart
-                      accessibilityLayer
-                      data={killsOverTime}
-                      margin={{
-                        left: 12,
-                        right: 12,
-                      }}
-                    >
-                      <CartesianGrid vertical={false} />
-                      <XAxis
-                        dataKey="date"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        tickFormatter={(value) => new Date(value).toLocaleDateString()}
-                      />
-                      <ChartTooltip
-                        cursor={false}
-                        content={<ChartTooltipContent indicator="line" />}
-                      />
-                      <Area
-                        dataKey="kills"
-                        type="natural"
-                        fill="var(--color-kills)"
-                        fillOpacity={0.4}
-                        stroke="var(--color-kills)"
-                      />
-                    </AreaChart>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <AreaChart
+                        data={killsOverTime}
+                        margin={{
+                          top: 10,
+                          right: 30,
+                          left: 0,
+                          bottom: 0,
+                        }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="date"
+                          tickFormatter={(value) => new Date(value).toLocaleDateString()}
+                        />
+                        <ChartTooltip
+                          content={<ChartTooltipContent indicator="line" />}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="kills"
+                          stroke="#8884d8"
+                          fill="#8884d8"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </ChartContainer>
                 </CardContent>
                 <CardFooter>
