@@ -171,7 +171,7 @@ func fetchAndUpdateSystems() {
 		close(systemsChan)
 	}()
 
-	batchSize := 250
+	batchSize := 1000
 	var systemsBatch []*models.System
 
 	for system := range systemsChan {
