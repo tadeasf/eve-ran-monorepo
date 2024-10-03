@@ -15,6 +15,9 @@ func GetCharacterByID(id int64) (*models.Character, error) {
 	var character models.Character
 	result := db.DB.First(&character, id)
 	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
 		return nil, result.Error
 	}
 	return &character, nil
