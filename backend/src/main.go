@@ -18,6 +18,9 @@ import (
 // @schemes http https
 
 func main() {
+
+	gin.SetMode(gin.ReleaseMode)
+
 	db.InitDB()
 
 	// Start the kill fetcher job

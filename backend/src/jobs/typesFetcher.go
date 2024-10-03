@@ -150,7 +150,7 @@ func fetchAndUpdateItems() {
 
 	page := 1
 	for {
-		ids, err := fetchItemIDsWithPagination(baseURL, page)
+		itemIDs, err := fetchItemIDsWithPagination(baseURL, page)
 		if err != nil {
 			if err.Error() == "requested page does not exist" {
 				log.Println("Reached the end of item pages")
@@ -160,7 +160,7 @@ func fetchAndUpdateItems() {
 			break
 		}
 
-		for _, id := range ids {
+		for _, id := range itemIDs {
 			if !existingMap[id] {
 				itemIDsChan <- id
 			}
