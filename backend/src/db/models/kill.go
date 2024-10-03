@@ -126,19 +126,8 @@ func (k *Kill) AttackersJSON() json.RawMessage {
 }
 
 type ZKillKill struct {
-	KillmailID     int64   `json:"killmail_id"`
-	CharacterID    int64   `json:"character_id"`
-	LocationID     int64   `json:"locationID"`
-	Hash           string  `json:"hash"`
-	FittedValue    float64 `json:"fittedValue"`
-	DroppedValue   float64 `json:"droppedValue"`
-	DestroyedValue float64 `json:"destroyedValue"`
-	TotalValue     float64 `json:"totalValue"`
-	Points         int     `json:"points"`
-	NPC            bool    `json:"npc"`
-	Solo           bool    `json:"solo"`
-	Awox           bool    `json:"awox"`
-	ZKB            struct {
+	KillmailID int64 `json:"killmail_id"`
+	ZKB        struct {
 		LocationID     int64   `json:"locationID"`
 		Hash           string  `json:"hash"`
 		FittedValue    float64 `json:"fittedValue"`

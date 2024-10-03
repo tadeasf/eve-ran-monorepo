@@ -1,12 +1,7 @@
 package jobs
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"sync"
 	"time"
 
@@ -14,7 +9,6 @@ import (
 	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/models"
 	"github.com/tadeasf/eve-ran/src/services"
-	"gorm.io/gorm"
 )
 
 var (
@@ -107,111 +101,6 @@ func FetchKillsForAllCharacters() {
 	}
 }
 
-func fetchKillsForCharacter(characterID int64) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("Recovered from panic in fetchKillsForCharacter: %v", r)
-		}
-		setJobRunning(false)
-	}()
-
-	lastKillTime, err := db.GetLastKillTimeForCharacter(characterID)
-	if err != nil {
-		log.Printf("Error getting last kill time for character %d: %v", characterID, err)
-		lastKillTime = time.Time{}
-	}
-	log.Printf("Last kill time for character %d: %v", characterID, lastKillTime)
-	page := 1
-	totalNewKills := 0
-
-	for {
-		log.Printf("Fetching page %d for character %d", page, characterID)
-		zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
-		if err != nil {
-			log.Printf("Error fetching kills from zKillboard for character %d: %v", characterID, err)
-			break
-		}
-
-		if len(zkillKills) == 0 {
-			log.Printf("No more kills found for character %d", characterID)
-			break
-		}
-
-		for _, zkill := range zkillKills {
-			// Check if kill already exists in database
-			existingKill, err := db.GetKillByID(zkill.KillmailID)
-			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-				log.Printf("Error checking for existing kill %d: %v", zkill.KillmailID, err)
-				continue
-			}
-
-			if existingKill != nil {
-				// Kill already exists, skip
-				continue
-			}
-
-			// Create new kill with basic zKillboard data
-			kill := &models.Kill{
-				KillmailID:     zkill.KillmailID,
-				CharacterID:    characterID,
-				LocationID:     zkill.ZKB.LocationID,
-				Hash:           zkill.ZKB.Hash,
-				FittedValue:    zkill.ZKB.FittedValue,
-				DroppedValue:   zkill.ZKB.DroppedValue,
-				DestroyedValue: zkill.ZKB.DestroyedValue,
-				TotalValue:     zkill.ZKB.TotalValue,
-				Points:         zkill.ZKB.Points,
-				NPC:            zkill.ZKB.NPC,
-				Solo:           zkill.ZKB.Solo,
-				Awox:           zkill.ZKB.Awox,
-			}
-
-			// Insert basic kill data
-			err = db.InsertKill(kill)
-			if err != nil {
-				log.Printf("Error inserting basic kill data for killmail %d: %v", zkill.KillmailID, err)
-				continue
-			}
-
-			// Queue kill for ESI enrichment
-			go enrichKillWithESIData(kill)
-
-			totalNewKills++
-		}
-
-		page++
-		time.Sleep(1 * time.Second) // Rate limiting
-	}
-
-	log.Printf("Finished fetching kills for character %d. Total new kills: %d", characterID, totalNewKills)
-}
-
-func enrichKillWithESIData(kill *models.Kill) {
-	esiKill, err := services.FetchKillmailFromESI(kill.KillmailID, kill.Hash)
-	if err != nil {
-		log.Printf("Error fetching ESI data for killmail %d: %v", kill.KillmailID, err)
-		return
-	}
-
-	// Update kill with ESI data
-	kill.KillTime = esiKill.KillTime
-	kill.SolarSystemID = esiKill.SolarSystemID
-	kill.Victim = esiKill.Victim
-	kill.Attackers = esiKill.Attackers
-
-	// Update kill in database
-	err = db.UpdateKill(kill)
-	if err != nil {
-		log.Printf("Error updating kill %d with ESI data: %v", kill.KillmailID, err)
-	}
-}
-
-func FetchAllKillsForCharacter(characterID int64) {
-	log.Printf("Starting full kill fetch for character %d", characterID)
-	fetchKillsForCharacter(characterID)
-	log.Printf("Finished full kill fetch for character %d", characterID)
-}
-
 func FetchKillsForCharacter(characterID int64) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -220,142 +109,138 @@ func FetchKillsForCharacter(characterID int64) {
 		setJobRunning(false)
 	}()
 
-	lastKillTime, err := db.GetLastKillTimeForCharacter(characterID)
-	if err != nil {
-		log.Printf("Error getting last kill time for character %d: %v", characterID, err)
-		lastKillTime = time.Time{}
-	}
-	log.Printf("Last kill time for character %d: %v", characterID, lastKillTime)
+	log.Printf("Fetching kills for character %d", characterID)
 
+	// Check if this is the initial fetch
+	isInitialFetch, err := db.IsInitialFetchForCharacter(characterID)
+	if err != nil {
+		log.Printf("Error checking initial fetch status for character %d: %v", characterID, err)
+		return
+	}
+
+	if isInitialFetch {
+		fetchAllKillsForCharacter(characterID)
+	} else {
+		fetchRecentKillsForCharacter(characterID)
+	}
+
+	// After inserting all new kills, enrich them
+	enrichKillsForCharacter(characterID)
+}
+
+func fetchAllKillsForCharacter(characterID int64) {
 	page := 1
 	totalNewKills := 0
-	isNewCharacter := lastKillTime.IsZero()
 
 	for {
-		log.Printf("Fetching page %d for character %d", page, characterID)
-		url := fmt.Sprintf("https://zkillboard.com/api/characterID/%d/page/%d/", characterID, page)
-
-		var zkillResponse []struct {
-			KillmailID   int64  `json:"killmail_id"`
-			KillmailTime string `json:"killmail_time"`
-			ZKB          struct {
-				LocationID     int64   `json:"locationID"`
-				Hash           string  `json:"hash"`
-				FittedValue    float64 `json:"fittedValue"`
-				DroppedValue   float64 `json:"droppedValue"`
-				DestroyedValue float64 `json:"destroyedValue"`
-				TotalValue     float64 `json:"totalValue"`
-				Points         int     `json:"points"`
-				NPC            bool    `json:"npc"`
-				Solo           bool    `json:"solo"`
-				Awox           bool    `json:"awox"`
-			} `json:"zkb"`
-		}
-
-		client := &http.Client{Timeout: 10 * time.Second}
-		req, err := http.NewRequest("GET", url, nil)
+		zkillKills, err := services.FetchKillsFromZKillboard(characterID, page)
 		if err != nil {
-			log.Printf("Error creating request for character %d: %v", characterID, err)
-			return
-		}
-		req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			log.Printf("Error fetching kills for character %d: %v", characterID, err)
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			log.Printf("Unexpected status code %d for character %d", resp.StatusCode, characterID)
-			return
+			log.Printf("Error fetching kills from zKillboard for character %d, page %d: %v", characterID, page, err)
+			break
 		}
 
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			log.Printf("Error reading response body for character %d: %v", characterID, err)
-			return
-		}
-
-		err = json.Unmarshal(body, &zkillResponse)
-		if err != nil {
-			log.Printf("Error unmarshaling JSON for character %d: %v", characterID, err)
-			return
-		}
-
-		if len(zkillResponse) == 0 {
+		if len(zkillKills) == 0 {
 			log.Printf("No more kills found for character %d", characterID)
 			break
 		}
 
-		newKills := 0
-		for _, zkill := range zkillResponse {
-			var killTime time.Time
-			if zkill.KillmailTime != "" {
-				parsedTime, err := time.Parse("2006-01-02T15:04:05Z", zkill.KillmailTime)
-				if err != nil {
-					log.Printf("Error parsing kill time for killmail %d: %v", zkill.KillmailID, err)
-					killTime = time.Now() // Use current time if parsing fails
-				} else {
-					killTime = parsedTime
-				}
-			} else {
-				log.Printf("Empty killmail time for killmail %d, using current time", zkill.KillmailID)
-				killTime = time.Now()
-			}
+		newKills := insertNewKills(characterID, zkillKills)
+		totalNewKills += newKills
 
-			if !isNewCharacter && killTime.Before(lastKillTime) {
-				log.Printf("Reached already processed kills for character %d, stopping", characterID)
-				return
-			}
+		log.Printf("Inserted %d new kills for character %d on page %d", newKills, characterID, page)
 
-			kill := models.Kill{
-				KillmailID:     zkill.KillmailID,
-				CharacterID:    characterID,
-				KillTime:       killTime, // Use the parsed killTime
-				LocationID:     zkill.ZKB.LocationID,
-				Hash:           zkill.ZKB.Hash,
-				FittedValue:    zkill.ZKB.FittedValue,
-				DroppedValue:   zkill.ZKB.DroppedValue,
-				DestroyedValue: zkill.ZKB.DestroyedValue,
-				TotalValue:     zkill.ZKB.TotalValue,
-				Points:         zkill.ZKB.Points,
-				NPC:            zkill.ZKB.NPC,
-				Solo:           zkill.ZKB.Solo,
-				Awox:           zkill.ZKB.Awox,
-			}
-
-			// Fetch additional data from ESI
-			esiKill, err := services.FetchKillmailFromESI(kill.KillmailID, kill.Hash)
-			if err != nil {
-				log.Printf("Error fetching killmail %d from ESI: %v", kill.KillmailID, err)
-				continue
-			}
-
-			// Combine zKillboard and ESI data
-			kill.SolarSystemID = esiKill.SolarSystemID
-			kill.Victim = esiKill.Victim
-			kill.Attackers = esiKill.Attackers
-
-			// Insert the kill
-			err = db.InsertKill(&kill)
-			if err != nil {
-				log.Printf("Error inserting kill %d: %v", kill.KillmailID, err)
-			} else {
-				newKills++
-				totalNewKills++
-			}
-		}
-
-		if newKills == 0 {
-			log.Printf("No new kills on page %d for character %d, stopping", page, characterID)
+		if newKills < 200 {
+			log.Printf("Less than 200 new kills on page %d for character %d, stopping", page, characterID)
 			break
 		}
 
 		page++
-		time.Sleep(1 * time.Second) // Rate limiting
+		time.Sleep(1 * time.Second) // Rate limiting for zKillboard API
 	}
 
-	log.Printf("Finished fetching kills for character %d. Total new kills: %d", characterID, totalNewKills)
+	log.Printf("Finished initial kill fetch for character %d. Total new kills: %d", characterID, totalNewKills)
+}
+
+func fetchRecentKillsForCharacter(characterID int64) {
+	zkillKills, err := services.FetchKillsFromZKillboard(characterID, 1) // Fetch only the first page
+	if err != nil {
+		log.Printf("Error fetching recent kills from zKillboard for character %d: %v", characterID, err)
+		return
+	}
+
+	newKills := insertNewKills(characterID, zkillKills)
+	log.Printf("Inserted %d new kills for character %d from recent fetch", newKills, characterID)
+}
+
+func insertNewKills(characterID int64, zkillKills []models.ZKillKill) int {
+	newKills := 0
+	for _, zkill := range zkillKills {
+		// Check if kill already exists
+		existingKill, err := db.GetKillByID(zkill.KillmailID)
+		if err == nil && existingKill != nil {
+			continue // Skip existing kills
+		}
+
+		kill := models.Kill{
+			KillmailID:     zkill.KillmailID,
+			CharacterID:    characterID,
+			LocationID:     zkill.ZKB.LocationID,
+			Hash:           zkill.ZKB.Hash,
+			FittedValue:    zkill.ZKB.FittedValue,
+			DroppedValue:   zkill.ZKB.DroppedValue,
+			DestroyedValue: zkill.ZKB.DestroyedValue,
+			TotalValue:     zkill.ZKB.TotalValue,
+			Points:         zkill.ZKB.Points,
+			NPC:            zkill.ZKB.NPC,
+			Solo:           zkill.ZKB.Solo,
+			Awox:           zkill.ZKB.Awox,
+		}
+
+		// Insert the kill
+		err = db.InsertKill(&kill)
+		if err != nil {
+			log.Printf("Error inserting kill %d: %v", kill.KillmailID, err)
+		} else {
+			newKills++
+		}
+	}
+	return newKills
+}
+
+func enrichKillsForCharacter(characterID int64) {
+	kills, err := db.GetUnenrichedKillsForCharacter(characterID)
+	if err != nil {
+		log.Printf("Error fetching unenriched kills for character %d: %v", characterID, err)
+		return
+	}
+
+	for _, kill := range kills {
+		esiKill, err := services.FetchKillmailFromESI(kill.KillmailID, kill.Hash)
+		if err != nil {
+			log.Printf("Error fetching killmail %d from ESI: %v", kill.KillmailID, err)
+			continue
+		}
+
+		kill.KillTime = esiKill.KillTime
+		kill.SolarSystemID = esiKill.SolarSystemID
+		kill.Victim = esiKill.Victim
+		kill.Attackers = esiKill.Attackers
+
+		err = db.UpdateKill(&kill)
+		if err != nil {
+			log.Printf("Error updating kill %d with ESI data: %v", kill.KillmailID, err)
+		} else {
+			log.Printf("Successfully enriched kill %d", kill.KillmailID)
+		}
+
+		time.Sleep(100 * time.Millisecond) // Rate limiting for ESI
+	}
+
+	log.Printf("Finished enriching kills for character %d", characterID)
+}
+
+func FetchAllKillsForCharacter(characterID int64) {
+	log.Printf("Starting full kill fetch for character %d", characterID)
+	FetchKillsForCharacter(characterID)
+	log.Printf("Finished full kill fetch for character %d", characterID)
 }

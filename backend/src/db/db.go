@@ -30,12 +30,6 @@ func GetCharacterByID(id int64) (*models.Character, error) {
 	return &character, nil
 }
 
-func GetKillByID(id int64) (*models.Kill, error) {
-	var kill models.Kill
-	err := DB.First(&kill, id).Error
-	return &kill, err
-}
-
 func GetLastKillTimeForCharacter(characterID int64) (time.Time, error) {
 	var lastKill struct {
 		KillTime time.Time
@@ -200,6 +194,40 @@ func GetAllKills() ([]models.Kill, error) {
 	return kills, err
 }
 
+func GetKillByID(killmailID int64) (*models.Kill, error) {
+	var kill models.Kill
+	result := DB.Where("killmail_id = ?", killmailID).First(&kill)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	return &kill, nil
+}
+
+func GetUnenrichedKillsForCharacter(characterID int64) ([]models.Kill, error) {
+	var kills []models.Kill
+	result := DB.Where("character_id = ? AND kill_time IS NULL", characterID).Find(&kills)
+	return kills, result.Error
+}
+
 func UpdateKill(kill *models.Kill) error {
 	return DB.Save(kill).Error
+}
+
+func InsertKill(kill *models.Kill) error {
+	return DB.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "killmail_id"}},
+		DoNothing: true,
+	}).Create(kill).Error
+}
+
+func IsInitialFetchForCharacter(characterID int64) (bool, error) {
+	var count int64
+	err := DB.Model(&models.Kill{}).Where("character_id = ?", characterID).Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count == 0, nil
 }

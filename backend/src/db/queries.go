@@ -192,10 +192,6 @@ func GetCharacterStats(startTime, endTime time.Time, systemID int64, regionIDs .
 	return stats, err
 }
 
-func InsertKill(kill *models.Kill) error {
-	return DB.Create(kill).Error
-}
-
 func UpsertKillsBatch(kills []*models.Kill) error {
 	return DB.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "killmail_id"}},
