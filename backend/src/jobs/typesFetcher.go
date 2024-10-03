@@ -58,12 +58,14 @@ func fetchAndUpdateConstellations() {
 
 	constellationsChan := make(chan *models.Constellation, len(ids))
 	var wg sync.WaitGroup
+	rateLimiter := time.Tick(100 * time.Millisecond)
 
 	for _, id := range ids {
 		if !existingMap[id] {
 			wg.Add(1)
 			go func(id int) {
 				defer wg.Done()
+				<-rateLimiter // Wait for rate limiter
 				constellation := fetchConstellation(id)
 				if constellation != nil {
 					constellationsChan <- constellation
@@ -105,14 +107,26 @@ func fetchAndUpdateConstellations() {
 
 func fetchConstellation(id int) *models.Constellation {
 	url := baseURL + "/universe/constellations/" + strconv.Itoa(id) + "/"
-	resp, err := http.Get(url)
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	resp, err := client.Get(url)
 	if err != nil {
 		log.Printf("Error fetching constellation %d: %v", id, err)
 		return nil
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Error fetching constellation %d: Status code %d", id, resp.StatusCode)
+		return nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Error reading response body for constellation %d: %v", id, err)
+		return nil
+	}
+
 	var constellation models.Constellation
 	err = json.Unmarshal(body, &constellation)
 	if err != nil {
