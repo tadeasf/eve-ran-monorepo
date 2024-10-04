@@ -6,8 +6,7 @@ import CharacterTable from '../components/CharacterTable'
 import FilterControls from '../components/FilterControls'
 import TotalKillsChart from '../components/TotalKillsChart'
 import TotalIskChart from '../components/TotalIskChart'
-import { Region, CharacterStats, Character, KillmailData, ChartConfig } from '../../lib/types'
-import { formatISK } from '../../lib/utils'
+import { Region, CharacterStats, Character, ChartConfig, Kill } from '../../lib/types'
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert"
 import { Skeleton } from "../components/ui/skeleton"
 import { Progress } from "../components/ui/progress"
@@ -73,49 +72,51 @@ export default function Dashboard() {
       const endDateTime = new Date(endDate).getTime()
 
       const combinedStats = characterData.map((character: Character) => {
-        const stats = regionStats.flatMap((regionStat: { data: KillmailData[] }) => 
-          (regionStat.data || []).filter((stat: KillmailData) => 
-            stat.character_id === character.id &&
-            new Date(stat.killmail_time).getTime() >= startDateTime &&
-            new Date(stat.killmail_time).getTime() <= endDateTime
-          )
-        )
-        const totalValue = stats.reduce((sum: number, stat: KillmailData) => sum + stat.total_value, 0)
+        let killCount = 0
+        let totalValue = 0
+
+        regionStats.forEach((regionData: Kill[]) => {
+          regionData.forEach((kill: Kill) => {
+            const killTime = new Date(kill.killmail_time).getTime()
+            if (killTime >= startDateTime && killTime <= endDateTime) {
+              const attackers = JSON.parse(atob(kill.attackers))
+              if (attackers.some((attacker: { character_id: number }) => attacker.character_id === character.id)) {
+                killCount++
+                totalValue += kill.zkill_data.total_value
+              }
+            }
+          })
+        })
+
         return {
           character_id: character.id,
           name: character.name,
-          kill_count: stats.length,
-          total_value: totalValue,
-          formatted_total_value: formatISK(totalValue),
-          kills: stats,
+          kill_count: killCount,
+          total_isk: totalValue,
+          total_value: totalValue
         }
       })
 
-      const killsPerDay: { [date: string]: number } = {}
-      const iskPerDay: { [date: string]: number } = {}
-      combinedStats.forEach((character) => {
-        character.kills.forEach((kill) => {
+      setCharacters(combinedStats)
+
+      // Calculate kills over time
+      const killsMap = new Map<string, number>()
+      const iskMap = new Map<string, number>()
+
+      regionStats.forEach((regionData: Kill[]) => {
+        regionData.forEach((kill: Kill) => {
           const date = kill.killmail_time.split('T')[0]
-          killsPerDay[date] = (killsPerDay[date] || 0) + 1
-          iskPerDay[date] = (iskPerDay[date] || 0) + kill.total_value
+          killsMap.set(date, (killsMap.get(date) || 0) + 1)
+          iskMap.set(date, (iskMap.get(date) || 0) + kill.zkill_data.total_value)
         })
       })
 
-      const sortedKillsOverTime = Object.entries(killsPerDay)
-        .map(([date, kills]) => ({ date, kills }))
-        .sort((a, b) => a.date.localeCompare(b.date))
+      setKillsOverTime(Array.from(killsMap, ([date, kills]) => ({ date, kills })))
+      setIskDestroyedOverTime(Array.from(iskMap, ([date, isk]) => ({ date, isk })))
 
-      const sortedIskDestroyedOverTime = Object.entries(iskPerDay)
-        .map(([date, isk]) => ({ date, isk }))
-        .sort((a, b) => a.date.localeCompare(b.date))
-
-      setKillsOverTime(sortedKillsOverTime)
-      setIskDestroyedOverTime(sortedIskDestroyedOverTime)
-      setCharacters(combinedStats)
+      setIsLoading(false)
     } catch (error) {
       console.error('Failed to fetch character stats:', error)
-    } finally {
-      setIsLoading(false)
     }
   }, [selectedRegions, startDate, endDate])
 

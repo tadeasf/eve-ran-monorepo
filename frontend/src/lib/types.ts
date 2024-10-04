@@ -7,10 +7,10 @@ export interface Region {
 
 export interface CharacterStats {
   character_id: number
-  name: string
   kill_count: number
+  total_isk: number
   total_value: number
-  formatted_total_value: string
+  name: string
 }
 
 export interface Character {
@@ -21,12 +21,42 @@ export interface Character {
   race_id: number
 }
 
-export interface KillmailData {
+export interface Kill {
+  id: number
   killmail_id: number
-  character_id: number
   killmail_time: string
   solar_system_id: number
-  locationID: number
+  victim: Victim
+  attackers: string // Base64 encoded JSON string
+  zkill_data: Zkill
+}
+
+export interface Victim {
+  alliance_id: number
+  character_id: number
+  corporation_id: number
+  damage_taken: number
+  ship_type_id: number
+  position: Position
+  items: Item[]
+}
+
+export interface Attacker {
+  alliance_id?: number
+  character_id: number
+  corporation_id: number
+  damage_done: number
+  final_blow: boolean
+  security_status: number
+  ship_type_id: number
+  weapon_type_id: number
+}
+
+export interface Zkill {
+  id: number
+  killmail_id: number
+  character_id: number
+  location_id: number
   hash: string
   fitted_value: number
   dropped_value: number
@@ -36,44 +66,30 @@ export interface KillmailData {
   npc: boolean
   solo: boolean
   awox: boolean
-  victim: {
-    character_id: number
-    corporation_id: number
-    faction_id?: number
-    damage_taken: number
-    ship_type_id: number
-    items: Array<{
-      item_type_id: number
-      singleton: number
-      quantity_destroyed?: number
-      quantity_dropped?: number
-      flag: number
-    }>
-    position: {
-      x: number
-      y: number
-      z: number
-    }
-  }
-  attackers: Array<{
-    alliance_id?: number
-    character_id: number
-    corporation_id: number
-    damage_done: number
-    final_blow: boolean
-    security_status: number
-    ship_type_id: number
-    weapon_type_id: number
-  }>
+  labels: string[]
+}
+
+export interface Position {
+  x: number
+  y: number
+  z: number
+}
+
+export interface Item {
+  item_type_id: number
+  quantity_destroyed?: number
+  quantity_dropped?: number
+  flag: number
+  singleton: number
 }
 
 export interface RegionKillsResponse {
-  data: KillmailData[]
+  data: Kill[]
 }
 
 export interface ChartConfig {
   [key: string]: {
-    label: string;
-    color: string;
-  };
+    label: string
+    color: string
+  }
 }

@@ -27,25 +27,32 @@ func checkNewKills() {
 	for _, character := range characters {
 		page := 1
 		for {
-			kills, err := FetchKillsFromZKillboard(character.ID, page)
+			zkills, err := FetchKillsFromZKillboard(character.ID, page)
 			if err != nil {
 				fmt.Printf("Error fetching kills for character %d: %v\n", character.ID, err)
 				break
 			}
 
-			if len(kills) == 0 {
+			if len(zkills) == 0 {
 				break
 			}
 
-			newKills := filterNewKills(kills)
-			if len(newKills) == 0 {
+			newZKills := filterNewZKills(zkills)
+			if len(newZKills) == 0 {
 				break
 			}
 
-			err = StoreKills(character.ID, newKills)
+			err = StoreZKills(newZKills)
 			if err != nil {
-				fmt.Printf("Error storing new kills for character %d: %v\n", character.ID, err)
+				fmt.Printf("Error storing new zkills for character %d: %v\n", character.ID, err)
 				break
+			}
+
+			for _, zkill := range newZKills {
+				err = EnhanceAndStoreKill(zkill)
+				if err != nil {
+					fmt.Printf("Error enhancing and storing kill %d: %v\n", zkill.KillmailID, err)
+				}
 			}
 
 			page++
@@ -53,17 +60,17 @@ func checkNewKills() {
 	}
 }
 
-func filterNewKills(kills []models.Zkill) []models.Zkill {
-	var newKills []models.Zkill
-	for _, kill := range kills {
-		exists, err := queries.KillExists(kill.KillmailID)
+func filterNewZKills(zkills []models.Zkill) []models.Zkill {
+	var newZKills []models.Zkill
+	for _, zkill := range zkills {
+		exists, err := queries.ZKillExists(zkill.KillmailID)
 		if err != nil {
-			fmt.Printf("Error checking if kill %d exists: %v\n", kill.KillmailID, err)
+			fmt.Printf("Error checking if zkill %d exists: %v\n", zkill.KillmailID, err)
 			continue
 		}
 		if !exists {
-			newKills = append(newKills, kill)
+			newZKills = append(newZKills, zkill)
 		}
 	}
-	return newKills
+	return newZKills
 }

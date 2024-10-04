@@ -5,25 +5,32 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/models"
+	"github.com/tadeasf/eve-ran/src/db/queries"
 )
 
 func InitializeCharacterKills(characterID int64) error {
 	page := 1
 	for {
-		kills, err := FetchKillsFromZKillboard(characterID, page)
+		zkills, err := FetchKillsFromZKillboard(characterID, page)
 		if err != nil {
 			return err
 		}
 
-		if len(kills) == 0 {
+		if len(zkills) == 0 {
 			break
 		}
 
-		err = StoreKills(characterID, kills)
+		err = StoreZKills(zkills)
 		if err != nil {
 			return err
+		}
+
+		for _, zkill := range zkills {
+			err = EnhanceAndStoreKill(zkill)
+			if err != nil {
+				fmt.Printf("Error enhancing and storing kill %d: %v\n", zkill.KillmailID, err)
+			}
 		}
 
 		page++
@@ -51,8 +58,6 @@ func FetchKillsFromZKillboard(characterID int64, page int) ([]models.Zkill, erro
 			TotalValue     float64 `json:"totalValue"`
 			Points         int     `json:"points"`
 			NPC            bool    `json:"npc"`
-			Solo           bool    `json:"solo"`
-			Awox           bool    `json:"awox"`
 		} `json:"zkb"`
 	}
 
@@ -74,8 +79,6 @@ func FetchKillsFromZKillboard(characterID int64, page int) ([]models.Zkill, erro
 			TotalValue:     rawKill.ZKB.TotalValue,
 			Points:         rawKill.ZKB.Points,
 			NPC:            rawKill.ZKB.NPC,
-			Solo:           rawKill.ZKB.Solo,
-			Awox:           rawKill.ZKB.Awox,
 		}
 		kills = append(kills, kill)
 	}
@@ -83,11 +86,15 @@ func FetchKillsFromZKillboard(characterID int64, page int) ([]models.Zkill, erro
 	return kills, nil
 }
 
-func StoreKills(characterID int64, kills []models.Zkill) error {
-	for _, kill := range kills {
-		if err := db.DB.Create(&kill).Error; err != nil {
-			return err
-		}
+func StoreZKills(zkills []models.Zkill) error {
+	return queries.UpsertZKills(zkills)
+}
+
+func EnhanceAndStoreKill(zkill models.Zkill) error {
+	enhancedKill, err := EnhanceKill(zkill.KillmailID)
+	if err != nil {
+		return err
 	}
-	return nil
+
+	return queries.UpsertKill(enhancedKill)
 }

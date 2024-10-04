@@ -8,6 +8,9 @@ import (
 
 	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/models"
+	"github.com/tadeasf/eve-ran/src/db/queries"
+	"github.com/tadeasf/eve-ran/src/services"
+
 	"github.com/tadeasf/eve-ran/src/utils"
 )
 
@@ -109,6 +112,45 @@ func fetchEnhancedKillData(zkill models.Zkill) (*models.Kill, error) {
 		},
 		Attackers: attackersJSON,
 		ZkillData: zkill,
+	}
+
+	return enhancedKill, nil
+}
+
+func EnhanceKill(killmailID int64) (*models.Kill, error) {
+	zkill, err := queries.GetZKillByID(killmailID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get zkill data: %v", err)
+	}
+
+	killmail, err := services.FetchKillmailFromESI(killmailID, zkill.Hash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch killmail from ESI: %v", err)
+	}
+
+	attackers, err := json.Marshal(killmail.Attackers)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal attackers: %v", err)
+	}
+
+	enhancedKill := &models.Kill{
+		KillmailID:    killmailID,
+		KillmailTime:  killmail.KillmailTime,
+		SolarSystemID: killmail.SolarSystemID,
+		Victim: models.Victim{
+			AllianceID:    killmail.Victim.AllianceID,
+			CharacterID:   killmail.Victim.CharacterID,
+			CorporationID: killmail.Victim.CorporationID,
+			DamageTaken:   killmail.Victim.DamageTaken,
+			ShipTypeID:    killmail.Victim.ShipTypeID,
+			Position: models.Position{
+				X: killmail.Victim.Position.X,
+				Y: killmail.Victim.Position.Y,
+				Z: killmail.Victim.Position.Z,
+			},
+		},
+		Attackers: attackers,
+		ZkillData: *zkill,
 	}
 
 	return enhancedKill, nil
