@@ -9,3 +9,4 @@ ran.backend.tadeasfort.com {
 ran.tadeasfort.com {
     reverse_proxy frontend:3000
 }
+
