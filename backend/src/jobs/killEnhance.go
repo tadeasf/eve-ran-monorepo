@@ -14,16 +14,29 @@ import (
 const esiBaseURL = "https://esi.evetech.net/latest"
 
 func EnhanceKills() {
-	var zkills []models.Zkill
-	result := db.DB.Find(&zkills)
-	if result.Error != nil {
-		utils.LogError(fmt.Sprintf("Error fetching Zkills: %v", result.Error))
+	// Get all killmail IDs from the kills table
+	var existingKillmailIDs []int64
+	if err := db.DB.Model(&models.Kill{}).Pluck("killmail_id", &existingKillmailIDs).Error; err != nil {
+		utils.LogError(fmt.Sprintf("Error fetching existing killmail IDs: %v", err))
 		return
 	}
 
-	utils.LogToConsole(fmt.Sprintf("Enhancing %d kills", len(zkills)))
+	// Create a map for faster lookup
+	existingKillmailIDMap := make(map[int64]bool)
+	for _, id := range existingKillmailIDs {
+		existingKillmailIDMap[id] = true
+	}
 
-	for _, zkill := range zkills {
+	// Fetch zkills that are not in the kills table
+	var zkillsToEnhance []models.Zkill
+	if err := db.DB.Where("killmail_id NOT IN (?)", existingKillmailIDs).Find(&zkillsToEnhance).Error; err != nil {
+		utils.LogError(fmt.Sprintf("Error fetching Zkills to enhance: %v", err))
+		return
+	}
+
+	utils.LogToConsole(fmt.Sprintf("Enhancing %d new kills", len(zkillsToEnhance)))
+
+	for _, zkill := range zkillsToEnhance {
 		enhancedKill, err := fetchEnhancedKillData(zkill)
 		if err != nil {
 			utils.LogError(fmt.Sprintf("Error enhancing kill %d: %v", zkill.KillmailID, err))
@@ -32,30 +45,11 @@ func EnhanceKills() {
 
 		utils.LogToFile(fmt.Sprintf("Enhanced kill data: %+v", enhancedKill))
 
-		// Skip invalid killmail IDs
-		if enhancedKill.KillmailID == 0 {
-			fmt.Printf("Skipping invalid killmail ID: %d\n", zkill.KillmailID)
-			continue
-		}
-
-		// Check if a Kill entry already exists
-		var existingKill models.Kill
-		if err := db.DB.Where("killmail_id = ?", zkill.KillmailID).First(&existingKill).Error; err == nil {
-			// Update existing Kill entry
-			existingKill.KillmailTime = enhancedKill.KillmailTime
-			existingKill.SolarSystemID = enhancedKill.SolarSystemID
-			existingKill.Victim = enhancedKill.Victim
-			existingKill.Attackers = enhancedKill.Attackers
-			existingKill.ZkillData = zkill
-
-			if err := db.DB.Save(&existingKill).Error; err != nil {
-				fmt.Printf("Error updating enhanced kill %d: %v\n", zkill.KillmailID, err)
-			}
+		// Create new Kill entry
+		if err := db.DB.Create(enhancedKill).Error; err != nil {
+			utils.LogError(fmt.Sprintf("Error storing enhanced kill %d: %v", zkill.KillmailID, err))
 		} else {
-			// Create new Kill entry
-			if err := db.DB.Create(enhancedKill).Error; err != nil {
-				fmt.Printf("Error storing enhanced kill %d: %v\n", zkill.KillmailID, err)
-			}
+			utils.LogToConsole(fmt.Sprintf("Added new kill: %d", zkill.KillmailID))
 		}
 	}
 }
