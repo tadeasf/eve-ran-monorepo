@@ -6,6 +6,10 @@ interface CharacterTableProps {
 }
 
 export default function CharacterTable({ characters }: CharacterTableProps) {
+  if (characters.length === 0) {
+    return <p>No kills found for the selected criteria.</p>
+  }
+
   return (
     <Table>
       <TableHeader>

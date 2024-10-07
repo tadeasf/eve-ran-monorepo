@@ -80,23 +80,21 @@ export default function Dashboard() {
         let killCount = 0
         let totalValue = 0
 
-        regionStats.forEach((regionData: Kill[]) => {
-          regionData.forEach((kill: Kill) => {
-            const killTime = new Date(kill.KillmailTime).getTime()
-            if (killTime >= startDateTime && killTime <= endDateTime) {
-              let attackers;
-              try {
-                attackers = JSON.parse(atob(kill.Attackers))
-              } catch (error) {
-                console.error(`Error parsing attackers for kill ${kill.KillmailID}:`, error)
-                return
-              }
-              if (attackers.some((attacker: Attacker) => attacker.character_id === character.id)) {
-                killCount++
-                totalValue += kill.ZkillData.TotalValue || 0
-              }
+        regionStats.flat().forEach((kill: Kill) => {
+          const killTime = new Date(kill.KillmailTime).getTime()
+          if (killTime >= startDateTime && killTime <= endDateTime) {
+            let attackers;
+            try {
+              attackers = JSON.parse(atob(kill.Attackers))
+            } catch (error) {
+              console.error(`Error parsing attackers for kill ${kill.KillmailID}:`, error)
+              return
             }
-          })
+            if (Array.isArray(attackers) && attackers.some((attacker: Attacker) => attacker.character_id === character.id)) {
+              killCount++
+              totalValue += kill.ZkillData.TotalValue || 0
+            }
+          }
         })
 
         return {
@@ -108,7 +106,7 @@ export default function Dashboard() {
         }
       })
 
-      setCharacters(combinedStats)
+      setCharacters(combinedStats.filter(char => char.kill_count > 0))
 
       // Calculate kills over time
       const killsMap = new Map<string, number>()

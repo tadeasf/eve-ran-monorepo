@@ -12,6 +12,10 @@ interface TotalKillsChartProps {
 }
 
 export default function TotalKillsChart({ killsOverTime, startDate, endDate, chartConfig }: TotalKillsChartProps) {
+  if (killsOverTime.length === 0) {
+    return <p>No kill data available for the selected period.</p>
+  }
+
   return (
     <Card>
       <CardHeader>

@@ -13,6 +13,10 @@ interface TotalIskChartProps {
 }
 
 export default function TotalIskChart({ iskDestroyedOverTime, startDate, endDate, chartConfig }: TotalIskChartProps) {
+  if (iskDestroyedOverTime.length === 0) {
+    return <p>No ISK data available for the selected period.</p>
+  }
+
   return (
     <Card>
       <CardHeader>
