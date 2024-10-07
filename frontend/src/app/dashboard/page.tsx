@@ -6,7 +6,7 @@ import CharacterTable from '../components/CharacterTable'
 import FilterControls from '../components/FilterControls'
 import TotalKillsChart from '../components/TotalKillsChart'
 import TotalIskChart from '../components/TotalIskChart'
-import { Region, CharacterStats, Character, ChartConfig, Kill, Attacker } from '../../lib/types'
+import { Region, CharacterStats, Character, ChartConfig, Kill } from '../../lib/types'
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert"
 import { Skeleton } from "../components/ui/skeleton"
 import { Progress } from "../components/ui/progress"
@@ -90,13 +90,14 @@ export default function Dashboard() {
               console.error(`Error parsing attackers for kill ${kill.KillmailID}:`, error)
               return
             }
-            if (Array.isArray(attackers) && attackers.some((attacker: Attacker) => attacker.character_id === character.id)) {
+            if (Array.isArray(attackers) && attackers.some((attacker: { character_id: number }) => attacker.character_id === character.id)) {
               killCount++
               totalValue += kill.ZkillData.TotalValue || 0
             }
           }
         })
 
+        console.log(`Stats for ${character.name}: Kills: ${killCount}, Total Value: ${totalValue}`)
         return {
           character_id: character.id,
           name: character.name,
@@ -106,7 +107,9 @@ export default function Dashboard() {
         }
       })
 
-      setCharacters(combinedStats.filter(char => char.kill_count > 0))
+      const filteredStats = combinedStats.filter(char => char.kill_count > 0)
+      console.log('Filtered character stats:', filteredStats)
+      setCharacters(filteredStats)
 
       // Calculate kills over time
       const killsMap = new Map<string, number>()
@@ -118,8 +121,14 @@ export default function Dashboard() {
         iskMap.set(date, (iskMap.get(date) || 0) + (kill.ZkillData.TotalValue || 0))
       })
 
-      setKillsOverTime(Array.from(killsMap, ([date, kills]) => ({ date, kills })))
-      setIskDestroyedOverTime(Array.from(iskMap, ([date, isk]) => ({ date, isk })))
+      const killsOverTime = Array.from(killsMap, ([date, kills]) => ({ date, kills }))
+      const iskDestroyedOverTime = Array.from(iskMap, ([date, isk]) => ({ date, isk }))
+
+      console.log('Kills over time:', killsOverTime)
+      console.log('ISK destroyed over time:', iskDestroyedOverTime)
+
+      setKillsOverTime(killsOverTime)
+      setIskDestroyedOverTime(iskDestroyedOverTime)
 
       setIsLoading(false)
     } catch (error) {
