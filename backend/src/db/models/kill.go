@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -51,4 +52,13 @@ type Zkill struct {
 	Solo           bool
 	Awox           bool
 	Labels         []string `gorm:"type:text[]"`
+}
+
+func (k *Kill) GetAttackers() ([]Attacker, error) {
+	var attackers []Attacker
+	err := json.Unmarshal(k.Attackers, &attackers)
+	if err != nil {
+		return nil, err
+	}
+	return attackers, nil
 }

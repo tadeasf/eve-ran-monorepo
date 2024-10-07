@@ -93,11 +93,8 @@ func StoreZKills(zkills []models.Zkill) error {
 func EnhanceAndStoreKill(zkill models.Zkill) error {
 	enhancedKill, err := EnhanceKill(zkill.KillmailID)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to enhance kill %d: %v", zkill.KillmailID, err)
 	}
-
-	// Map ZkillData
-	enhancedKill.ZkillData = zkill
 
 	return queries.UpsertKill(enhancedKill)
 }
