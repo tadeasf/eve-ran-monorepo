@@ -22,13 +22,13 @@ export interface Character {
 }
 
 export interface Kill {
-  id: number
-  killmail_id: number
-  killmail_time: string
-  solar_system_id: number
-  victim: Victim
-  attackers: string // Base64 encoded JSON string
-  zkill_data: Zkill
+  ID: number
+  KillmailID: number
+  KillmailTime: string
+  SolarSystemID: number
+  Victim: Victim
+  Attackers: string // Base64 encoded JSON string
+  ZkillData: Zkill
 }
 
 export interface Victim {
@@ -53,20 +53,20 @@ export interface Attacker {
 }
 
 export interface Zkill {
-  id: number
-  killmail_id: number
-  character_id: number
-  location_id: number
-  hash: string
-  fitted_value: number
-  dropped_value: number
-  destroyed_value: number
-  total_value: number
-  points: number
-  npc: boolean
-  solo: boolean
-  awox: boolean
-  labels: string[]
+  ID: number
+  KillmailID: number
+  CharacterID: number
+  LocationID: number
+  Hash: string
+  FittedValue: number
+  DroppedValue: number
+  DestroyedValue: number
+  TotalValue: number
+  Points: number
+  NPC: boolean
+  Solo: boolean
+  Awox: boolean
+  Labels: string[] | null
 }
 
 export interface Position {

@@ -83,20 +83,20 @@ export default function Dashboard() {
         regionStats.forEach((regionData: Kill[], regionIndex: number) => {
           console.log(`Processing region ${selectedRegions[regionIndex].name}`)
           regionData.forEach((kill: Kill) => {
-            const killTime = new Date(kill.killmail_time).getTime()
+            const killTime = new Date(kill.KillmailTime).getTime()
             if (killTime >= startDateTime && killTime <= endDateTime) {
-              console.log(`Processing kill ${kill.killmail_id}`)
+              console.log(`Processing kill ${kill.KillmailID}`)
               let attackers;
               try {
-                attackers = JSON.parse(kill.attackers)
+                attackers = JSON.parse(atob(kill.Attackers))
               } catch (error) {
-                console.error(`Error parsing attackers for kill ${kill.killmail_id}:`, error)
-                console.log('Raw attackers data:', kill.attackers)
+                console.error(`Error parsing attackers for kill ${kill.KillmailID}:`, error)
+                console.log('Raw attackers data:', kill.Attackers)
                 return
               }
               if (attackers.some((attacker: { character_id: number }) => attacker.character_id === character.id)) {
                 killCount++
-                totalValue += kill.zkill_data.total_value
+                totalValue += kill.ZkillData.TotalValue || 0
                 console.log(`Kill counted for character ${character.name}. Total kills: ${killCount}`)
               }
             }
@@ -121,9 +121,9 @@ export default function Dashboard() {
 
       regionStats.forEach((regionData: Kill[]) => {
         regionData.forEach((kill: Kill) => {
-          const date = kill.killmail_time.split('T')[0]
+          const date = kill.KillmailTime.split('T')[0]
           killsMap.set(date, (killsMap.get(date) || 0) + 1)
-          iskMap.set(date, (iskMap.get(date) || 0) + kill.zkill_data.total_value)
+          iskMap.set(date, (iskMap.get(date) || 0) + (kill.ZkillData.TotalValue || 0))
         })
       })
 
