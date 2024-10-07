@@ -24,6 +24,8 @@ func EnhanceKills() {
 		return
 	}
 
+	utils.LogToConsole(fmt.Sprintf("Number of existing killmail IDs: %d", len(existingKillmailIDs)))
+
 	// Create a map for faster lookup
 	existingKillmailIDMap := make(map[int64]bool)
 	for _, id := range existingKillmailIDs {
