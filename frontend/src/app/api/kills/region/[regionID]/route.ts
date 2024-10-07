@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { Kill } from '@/lib/types'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 const FETCH_TIMEOUT = 120000 // 120 seconds timeout
@@ -6,7 +7,7 @@ const FETCH_TIMEOUT = 120000 // 120 seconds timeout
 export async function GET(
   request: Request,
   { params }: { params: { regionID: string } }
-) {
+): Promise<NextResponse> {
   const { regionID } = params
   const { searchParams } = new URL(request.url)
   const startDate = searchParams.get('startDate')
@@ -32,7 +33,7 @@ export async function GET(
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    const data = await response.json()
+    const data: Kill[] = await response.json()
     console.log(`Received data for region ${regionID}:`, data.length ? `${data.length} kills` : 'No kills')
 
     return NextResponse.json(data)

@@ -1,96 +1,149 @@
 export interface Region {
-  region_id: number
-  name: string
-  description: string
-  constellations: number[]
+  RegionID: number;
+  Name: string;
+  Description: string;
+  Constellations: number[]; // Assuming constellations is an array of IDs
 }
 
 export interface CharacterStats {
-  character_id: number
-  kill_count: number
-  total_isk: number
-  total_value: number
-  name: string
+  character_id: number;
+  kill_count: number;
+  total_isk: number;
+  total_value: number;
+  name: string;
 }
 
 export interface Character {
-  id: number
-  name: string
-  security_status: number
-  title: string
-  race_id: number
+  id: number;
+  name: string;
+  security_status: number;
+  title: string;
+  race_id: number;
 }
 
 export interface Kill {
-  ID: number
-  KillmailID: number
-  KillmailTime: string
-  SolarSystemID: number
-  CharacterID: number
-  Victim: Victim
-  Attackers: string
-  ZkillData: Zkill
+  ID: number;
+  KillmailID: number;
+  KillmailTime: string;
+  SolarSystemID: number;
+  CharacterID: number;
+  Victim: Victim;
+  Attackers: string; // This is a JSON string now
+  ZkillData: Zkill;
 }
 
 export interface Victim {
-  alliance_id: number
-  character_id: number
-  corporation_id: number
-  damage_taken: number
-  ship_type_id: number
-  position: Position
-  items: Item[]
+  AllianceID: number;
+  CharacterID: number;
+  CorporationID: number;
+  DamageTaken: number;
+  ShipTypeID: number;
+  Position: Position;
+  Items: Item[];
 }
 
 export interface Attacker {
-  alliance_id?: number
-  character_id: number
-  corporation_id: number
-  damage_done: number
-  final_blow: boolean
-  security_status: number
-  ship_type_id: number
-  weapon_type_id: number
+  AllianceID?: number;
+  CharacterID: number;
+  CorporationID: number;
+  DamageDone: number;
+  FinalBlow: boolean;
+  SecurityStatus: number;
+  ShipTypeID: number;
+  WeaponTypeID: number;
 }
 
 export interface Zkill {
-  ID: number
-  KillmailID: number
-  CharacterID: number
-  LocationID: number
-  Hash: string
-  FittedValue: number
-  DroppedValue: number
-  DestroyedValue: number
-  TotalValue: number
-  Points: number
-  NPC: boolean
-  Solo: boolean
-  Awox: boolean
-  Labels: string[] | null
+  ID: number;
+  KillmailID: number;
+  CharacterID: number;
+  LocationID: number;
+  Hash: string;
+  FittedValue: number;
+  DroppedValue: number;
+  DestroyedValue: number;
+  TotalValue: number;
+  Points: number;
+  NPC: boolean;
+  Solo: boolean;
+  Awox: boolean;
+  Labels: string[] | null;
 }
 
 export interface Position {
-  x: number
-  y: number
-  z: number
+  X: number;
+  Y: number;
+  Z: number;
 }
 
 export interface Item {
-  item_type_id: number
-  quantity_destroyed?: number
-  quantity_dropped?: number
-  flag: number
-  singleton: number
+  ItemTypeID: number;
+  QuantityDestroyed?: number;
+  QuantityDropped?: number;
+  Flag: number;
+  Singleton: number;
 }
 
 export interface RegionKillsResponse {
-  data: Kill[]
+  data: Kill[];
 }
 
 export interface ChartConfig {
   [key: string]: {
-    label: string
-    color: string
-  }
+    label: string;
+    color: string;
+  };
+}
+
+export interface System {
+  SystemID: number;
+  ConstellationID: number;
+  RegionID: number;
+  Name: string;
+  SecurityClass: string;
+  SecurityStatus: number;
+  StarID: number;
+  Planets: string; // Change to string as it's stored as json.RawMessage in Go
+  Stargates: string; // Change to string as it's stored as json.RawMessage in Go
+  Stations: string; // Change to string as it's stored as json.RawMessage in Go
+  Position: string; // Change to string as it's stored as json.RawMessage in Go
+}
+
+// New interfaces to replace 'any' types
+export interface Planet {
+  PlanetID: number;
+  TypeID: number;
+  Name: string;
+}
+
+export interface Stargate {
+  StargateID: number;
+  DestinationStargateID: number;
+  DestinationSystemID: number;
+  TypeID: number;
+  Name: string;
+}
+
+export interface Station {
+  StationID: number;
+  TypeID: number;
+  Name: string;
+}
+
+export interface ESIItem {
+  TypeID: number;
+  GroupID: number;
+  Name: string;
+  Description: string;
+  Mass: number;
+  Volume: number;
+  Capacity: number;
+  PortionSize: number;
+  PackagedVolume: number;
+  Published: boolean;
+  Radius: number;
+}
+
+export interface ZKillboardItem extends Item {
+  Items?: ZKillboardItem[];
 }

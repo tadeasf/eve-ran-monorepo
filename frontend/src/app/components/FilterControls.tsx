@@ -81,16 +81,16 @@ export default function FilterControls({
                 {Array.isArray(regions) && regions.length > 0 ? (
                   regions.map((region) => (
                     <CommandItem
-                      key={region.region_id}
-                      onSelect={() => handleSelectRegion(region.region_id, region.name)}
+                      key={region.RegionID}
+                      onSelect={() => handleSelectRegion(region.RegionID, region.Name)}
                     >
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
-                          selectedRegions.some(r => r.id === region.region_id) ? "opacity-100" : "opacity-0"
+                          selectedRegions.some(r => r.id === region.RegionID) ? "opacity-100" : "opacity-0"
                         )}
                       />
-                      {region.name}
+                      {region.Name}
                     </CommandItem>
                   ))
                 ) : (
