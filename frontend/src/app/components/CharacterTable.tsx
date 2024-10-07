@@ -1,6 +1,5 @@
-import { CharacterStats } from '../../lib/types'
-import { formatISK } from '../../lib/utils'
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "./ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/app/components/ui/table"
+import { CharacterStats } from '@/lib/types'
 
 interface CharacterTableProps {
   characters: CharacterStats[]
@@ -9,12 +8,11 @@ interface CharacterTableProps {
 export default function CharacterTable({ characters }: CharacterTableProps) {
   return (
     <Table>
-      <TableCaption>A list of your characters and their stats.</TableCaption>
       <TableHeader>
         <TableRow>
           <TableHead>Character Name</TableHead>
           <TableHead>Kill Count</TableHead>
-          <TableHead>Total Value</TableHead>
+          <TableHead>Total ISK Destroyed</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -22,7 +20,7 @@ export default function CharacterTable({ characters }: CharacterTableProps) {
           <TableRow key={character.character_id}>
             <TableCell>{character.name}</TableCell>
             <TableCell>{character.kill_count}</TableCell>
-            <TableCell>{formatISK(character.total_value)}</TableCell>
+            <TableCell>{character.total_isk.toLocaleString()} ISK</TableCell>
           </TableRow>
         ))}
       </TableBody>

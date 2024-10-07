@@ -6,7 +6,7 @@ import CharacterTable from '../components/CharacterTable'
 import FilterControls from '../components/FilterControls'
 import TotalKillsChart from '../components/TotalKillsChart'
 import TotalIskChart from '../components/TotalIskChart'
-import { Region, CharacterStats, Character, ChartConfig, Kill } from '../../lib/types'
+import { Region, CharacterStats, Character, ChartConfig, Kill, Attacker } from '../../lib/types'
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert"
 import { Skeleton } from "../components/ui/skeleton"
 import { Progress } from "../components/ui/progress"
@@ -80,30 +80,25 @@ export default function Dashboard() {
         let killCount = 0
         let totalValue = 0
 
-        regionStats.forEach((regionData: Kill[], regionIndex: number) => {
-          console.log(`Processing region ${selectedRegions[regionIndex].name}`)
+        regionStats.forEach((regionData: Kill[]) => {
           regionData.forEach((kill: Kill) => {
             const killTime = new Date(kill.KillmailTime).getTime()
             if (killTime >= startDateTime && killTime <= endDateTime) {
-              console.log(`Processing kill ${kill.KillmailID}`)
               let attackers;
               try {
                 attackers = JSON.parse(atob(kill.Attackers))
               } catch (error) {
                 console.error(`Error parsing attackers for kill ${kill.KillmailID}:`, error)
-                console.log('Raw attackers data:', kill.Attackers)
                 return
               }
-              if (attackers.some((attacker: { character_id: number }) => attacker.character_id === character.id)) {
+              if (attackers.some((attacker: Attacker) => attacker.character_id === character.id)) {
                 killCount++
                 totalValue += kill.ZkillData.TotalValue || 0
-                console.log(`Kill counted for character ${character.name}. Total kills: ${killCount}`)
               }
             }
           })
         })
 
-        console.log(`Final stats for character ${character.name}: Kills: ${killCount}, Total Value: ${totalValue}`)
         return {
           character_id: character.id,
           name: character.name,
@@ -119,12 +114,10 @@ export default function Dashboard() {
       const killsMap = new Map<string, number>()
       const iskMap = new Map<string, number>()
 
-      regionStats.forEach((regionData: Kill[]) => {
-        regionData.forEach((kill: Kill) => {
-          const date = kill.KillmailTime.split('T')[0]
-          killsMap.set(date, (killsMap.get(date) || 0) + 1)
-          iskMap.set(date, (iskMap.get(date) || 0) + (kill.ZkillData.TotalValue || 0))
-        })
+      regionStats.flat().forEach((kill: Kill) => {
+        const date = kill.KillmailTime.split('T')[0]
+        killsMap.set(date, (killsMap.get(date) || 0) + 1)
+        iskMap.set(date, (iskMap.get(date) || 0) + (kill.ZkillData.TotalValue || 0))
       })
 
       setKillsOverTime(Array.from(killsMap, ([date, kills]) => ({ date, kills })))
