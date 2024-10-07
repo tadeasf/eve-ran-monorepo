@@ -58,16 +58,21 @@ export default function Dashboard() {
     try {
       const characterResponse = await fetch('/api/characters')
       const characterData: Character[] = await characterResponse.json()
+      console.log('Character data:', characterData)
 
       const statsPromises = selectedRegions.map(async (region) => {
         const response = await fetch(`/api/kills/region/${region.id}?startDate=${startDate}&endDate=${endDate}`)
         if (!response.ok) {
           throw new Error(`Failed to fetch data for region ${region.id}`)
         }
-        return response.json()
+        const data = await response.json()
+        console.log(`Data for region ${region.id}:`, data)
+        return data
       })
 
       const regionStats = await Promise.all(statsPromises)
+      console.log('All region stats:', regionStats)
+
       const startDateTime = new Date(startDate).getTime()
       const endDateTime = new Date(endDate).getTime()
 
@@ -75,19 +80,30 @@ export default function Dashboard() {
         let killCount = 0
         let totalValue = 0
 
-        regionStats.forEach((regionData: Kill[]) => {
+        regionStats.forEach((regionData: Kill[], regionIndex: number) => {
+          console.log(`Processing region ${selectedRegions[regionIndex].name}`)
           regionData.forEach((kill: Kill) => {
             const killTime = new Date(kill.killmail_time).getTime()
             if (killTime >= startDateTime && killTime <= endDateTime) {
-              const attackers = JSON.parse(kill.attackers)
+              console.log(`Processing kill ${kill.killmail_id}`)
+              let attackers;
+              try {
+                attackers = JSON.parse(kill.attackers)
+              } catch (error) {
+                console.error(`Error parsing attackers for kill ${kill.killmail_id}:`, error)
+                console.log('Raw attackers data:', kill.attackers)
+                return
+              }
               if (attackers.some((attacker: { character_id: number }) => attacker.character_id === character.id)) {
                 killCount++
                 totalValue += kill.zkill_data.total_value
+                console.log(`Kill counted for character ${character.name}. Total kills: ${killCount}`)
               }
             }
           })
         })
 
+        console.log(`Final stats for character ${character.name}: Kills: ${killCount}, Total Value: ${totalValue}`)
         return {
           character_id: character.id,
           name: character.name,
