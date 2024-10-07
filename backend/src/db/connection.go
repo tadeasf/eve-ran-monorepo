@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"github.com/tadeasf/eve-ran/src/db/models"
 	"gorm.io/driver/postgres"
@@ -14,19 +15,32 @@ import (
 var DB *gorm.DB
 
 func InitDB() {
+	host := os.Getenv("DB_HOST")
+	port := os.Getenv("DB_PORT")
+	user := os.Getenv("DB_USER")
+	password := os.Getenv("DB_PASSWORD")
+	dbname := os.Getenv("DB_NAME")
+
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		os.Getenv("DB_HOST"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_USER"),
-		os.Getenv("DB_PASSWORD"),
-		os.Getenv("DB_NAME"))
+		host, port, user, password, dbname)
+
+	log.Printf("Attempting to connect to database with DSN: host=%s port=%s user=%s dbname=%s", host, port, user, dbname)
+
 	var err error
-	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
-	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+	for i := 0; i < 5; i++ {
+		DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
+		if err == nil {
+			break
+		}
+		log.Printf("Failed to connect to database (attempt %d/5): %v", i+1, err)
+		time.Sleep(5 * time.Second)
 	}
 
-	fmt.Println("Successfully connected to the database")
+	if err != nil {
+		log.Fatal("Failed to connect to database after 5 attempts:", err)
+	}
+
+	log.Println("Successfully connected to the database")
 
 	err = MigrateSchema()
 	if err != nil {
