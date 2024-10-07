@@ -79,7 +79,7 @@ export default function Dashboard() {
           regionData.forEach((kill: Kill) => {
             const killTime = new Date(kill.killmail_time).getTime()
             if (killTime >= startDateTime && killTime <= endDateTime) {
-              const attackers = JSON.parse(atob(kill.attackers))
+              const attackers = JSON.parse(kill.attackers)
               if (attackers.some((attacker: { character_id: number }) => attacker.character_id === character.id)) {
                 killCount++
                 totalValue += kill.zkill_data.total_value
@@ -117,6 +117,7 @@ export default function Dashboard() {
       setIsLoading(false)
     } catch (error) {
       console.error('Failed to fetch character stats:', error)
+      setIsLoading(false)
     }
   }, [selectedRegions, startDate, endDate])
 
