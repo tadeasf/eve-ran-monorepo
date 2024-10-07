@@ -18,8 +18,21 @@ func UpsertCharacter(character *models.Character) error {
 
 func UpsertKill(kill *models.Kill) error {
 	return db.DB.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "killmail_id"}},
-		DoUpdates: clause.AssignmentColumns([]string{"character_id", "kill_time", "solar_system_id", "location_id", "hash", "fitted_value", "dropped_value", "destroyed_value", "total_value", "points", "npc", "solo", "awox", "victim_alliance_id", "victim_character_id", "victim_corporation_id", "victim_faction_id", "victim_damage_taken", "victim_ship_type_id", "victim_items", "victim_position", "attackers"}),
+		Columns: []clause.Column{{Name: "killmail_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"killmail_time",
+			"solar_system_id",
+			"victim_alliance_id",
+			"victim_character_id",
+			"victim_corporation_id",
+			"victim_damage_taken",
+			"victim_ship_type_id",
+			"victim_position_x",
+			"victim_position_y",
+			"victim_position_z",
+			"victim_items",
+			"attackers",
+		}),
 	}).Create(kill).Error
 }
 
@@ -89,7 +102,7 @@ func BulkUpsertKills(kills []models.Kill) error {
 		for _, kill := range kills {
 			result := tx.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "killmail_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"character_id", "kill_time", "solar_system_id", "location_id", "hash", "fitted_value", "dropped_value", "destroyed_value", "total_value", "points", "npc", "solo", "awox", "victim", "attackers"}),
+				DoUpdates: clause.AssignmentColumns([]string{"character_id", "kill_time", "solar_system_id", "location_id", "hash", "fitted_value", "dropped_value", "destroyed_value", "total_value", "points", "npc", "solo", "awox", "victim_alliance_id", "victim_character_id", "victim_corporation_id", "victim_faction_id", "victim_damage_taken", "victim_ship_type_id", "victim_items", "victim_position", "attackers"}),
 			}).Create(&kill)
 			if result.Error != nil {
 				return result.Error

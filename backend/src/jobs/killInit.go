@@ -96,5 +96,8 @@ func EnhanceAndStoreKill(zkill models.Zkill) error {
 		return err
 	}
 
+	// Map ZkillData
+	enhancedKill.ZkillData = zkill
+
 	return queries.UpsertKill(enhancedKill)
 }

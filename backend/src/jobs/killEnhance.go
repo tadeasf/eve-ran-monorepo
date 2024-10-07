@@ -151,7 +151,7 @@ func EnhanceKill(killmailID int64) (*models.Kill, error) {
 				Z: killmail.Victim.Position.Z,
 			},
 		},
-		Attackers: attackers,
+		Attackers: attackers, // This should be the JSON byte array
 		ZkillData: *zkill,
 	}
 
