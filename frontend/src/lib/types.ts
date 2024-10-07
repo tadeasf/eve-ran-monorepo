@@ -26,8 +26,9 @@ export interface Kill {
   KillmailID: number
   KillmailTime: string
   SolarSystemID: number
+  CharacterID: number
   Victim: Victim
-  Attackers: string // Base64 encoded JSON string
+  Attackers: string
   ZkillData: Zkill
 }
 

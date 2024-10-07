@@ -9,6 +9,7 @@ type Kill struct {
 	KillmailID    int64 `gorm:"uniqueIndex"`
 	KillmailTime  time.Time
 	SolarSystemID int
+	CharacterID   int64
 	Victim        Victim `gorm:"embedded;embeddedPrefix:victim_"`
 	Attackers     []byte `gorm:"type:jsonb"`
 	ZkillData     Zkill  `gorm:"foreignKey:KillmailID;references:KillmailID"`

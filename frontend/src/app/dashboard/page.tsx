@@ -58,77 +58,48 @@ export default function Dashboard() {
     try {
       const characterResponse = await fetch('/api/characters')
       const characterData: Character[] = await characterResponse.json()
-      console.log('Character data:', characterData)
 
       const statsPromises = selectedRegions.map(async (region) => {
         const response = await fetch(`/api/kills/region/${region.id}?startDate=${startDate}&endDate=${endDate}`)
         if (!response.ok) {
           throw new Error(`Failed to fetch data for region ${region.id}`)
         }
-        const data = await response.json()
-        console.log(`Data for region ${region.id}:`, data)
-        return data
+        return response.json()
       })
 
       const regionStats = await Promise.all(statsPromises)
-      console.log('All region stats:', regionStats)
+      const allKills = regionStats.flat()
 
-      const startDateTime = new Date(startDate).getTime()
-      const endDateTime = new Date(endDate).getTime()
+      const characterStats = characterData.map((character) => {
+        const characterKills = allKills.filter((kill: Kill) => kill.CharacterID === character.id)
+        const killCount = characterKills.length
+        const totalIsk = characterKills.reduce((sum, kill) => sum + (kill.ZkillData.TotalValue || 0), 0)
 
-      const combinedStats = characterData.map((character: Character) => {
-        let killCount = 0
-        let totalValue = 0
-
-        regionStats.flat().forEach((kill: Kill) => {
-          const killTime = new Date(kill.KillmailTime).getTime()
-          if (killTime >= startDateTime && killTime <= endDateTime) {
-            let attackers;
-            try {
-              attackers = JSON.parse(atob(kill.Attackers))
-            } catch (error) {
-              console.error(`Error parsing attackers for kill ${kill.KillmailID}:`, error)
-              return
-            }
-            if (Array.isArray(attackers) && attackers.some((attacker: { character_id: number }) => attacker.character_id === character.id)) {
-              killCount++
-              totalValue += kill.ZkillData.TotalValue || 0
-            }
-          }
-        })
-
-        console.log(`Stats for ${character.name}: Kills: ${killCount}, Total Value: ${totalValue}`)
         return {
           character_id: character.id,
           name: character.name,
           kill_count: killCount,
-          total_isk: totalValue,
-          total_value: totalValue
+          total_isk: totalIsk,
+          total_value: totalIsk
         }
       })
 
-      const filteredStats = combinedStats.filter(char => char.kill_count > 0)
-      console.log('Filtered character stats:', filteredStats)
-      setCharacters(filteredStats)
+      setCharacters(characterStats.filter(char => char.kill_count > 0))
 
-      // Calculate kills over time
-      const killsMap = new Map<string, number>()
-      const iskMap = new Map<string, number>()
-
-      regionStats.flat().forEach((kill: Kill) => {
+      const killsOverTime = allKills.reduce((acc, kill) => {
         const date = kill.KillmailTime.split('T')[0]
-        killsMap.set(date, (killsMap.get(date) || 0) + 1)
-        iskMap.set(date, (iskMap.get(date) || 0) + (kill.ZkillData.TotalValue || 0))
-      })
+        acc[date] = (acc[date] || 0) + 1
+        return acc
+      }, {} as Record<string, number>)
 
-      const killsOverTime = Array.from(killsMap, ([date, kills]) => ({ date, kills }))
-      const iskDestroyedOverTime = Array.from(iskMap, ([date, isk]) => ({ date, isk }))
+      const iskDestroyedOverTime = allKills.reduce((acc, kill) => {
+        const date = kill.KillmailTime.split('T')[0]
+        acc[date] = (acc[date] || 0) + (kill.ZkillData.TotalValue || 0)
+        return acc
+      }, {} as Record<string, number>)
 
-      console.log('Kills over time:', killsOverTime)
-      console.log('ISK destroyed over time:', iskDestroyedOverTime)
-
-      setKillsOverTime(killsOverTime)
-      setIskDestroyedOverTime(iskDestroyedOverTime)
+      setKillsOverTime(Object.entries(killsOverTime).map(([date, kills]) => ({ date, kills: typeof kills === 'number' ? kills : 0 })))
+      setIskDestroyedOverTime(Object.entries(iskDestroyedOverTime).map(([date, isk]) => ({ date, isk: typeof isk === 'number' ? isk : 0 })))
 
       setIsLoading(false)
     } catch (error) {

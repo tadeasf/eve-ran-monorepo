@@ -194,10 +194,31 @@ func GetKillsByRegion(c *gin.Context) {
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
 
-	kills, err := queries.GetKillsByRegion(regionID, startDate, endDate)
+	systemIDs, err := queries.GetSolarSystemIDsByRegion(regionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	var kills []models.Kill
+	query := db.DB.Preload("ZkillData").Where("solar_system_id IN ?", systemIDs)
+
+	if startDate != "" && endDate != "" {
+		query = query.Where("killmail_time BETWEEN ? AND ?", startDate, endDate)
+	}
+
+	if err := query.Find(&kills).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Process kills to include CharacterID from Attackers
+	for i := range kills {
+		var attackers []models.Attacker
+		json.Unmarshal(kills[i].Attackers, &attackers)
+		if len(attackers) > 0 {
+			kills[i].CharacterID = attackers[0].CharacterID
+		}
 	}
 
 	c.JSON(http.StatusOK, kills)

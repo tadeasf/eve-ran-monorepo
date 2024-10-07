@@ -171,3 +171,18 @@ func GetConstellationByID(id int) (*models.Constellation, error) {
 	}
 	return &constellation, nil
 }
+
+func GetSolarSystemIDsByRegion(regionID int) ([]int, error) {
+	var systems []models.System
+	result := db.DB.Where("region_id = ?", regionID).Find(&systems)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	var systemIDs []int
+	for _, system := range systems {
+		systemIDs = append(systemIDs, system.SystemID)
+	}
+
+	return systemIDs, nil
+}
