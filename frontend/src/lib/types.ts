@@ -89,6 +89,14 @@ export interface RegionKillsResponse {
 }
 
 export interface ChartConfig {
+  kills: {
+    label: string;
+    color: string;
+  };
+  isk: {
+    label: string;
+    color: string;
+  };
   [key: string]: {
     label: string;
     color: string;

@@ -58,7 +58,7 @@ export default function FilterControls({
     <div className="flex flex-col space-y-4 mb-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Regions</label>
+          <label className="block text-sm font-medium mb-1">Regions</label>
           {isLoading || regions.length === 0 ? (
             <Skeleton className="w-full h-10" />
           ) : (
@@ -106,7 +106,7 @@ export default function FilterControls({
           )}
         </div>
         <div>
-          <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+          <label htmlFor="start-date" className="block text-sm font-medium mb-1">Start Date</label>
           {isLoading ? (
             <Skeleton className="w-full h-10" />
           ) : (
@@ -115,12 +115,12 @@ export default function FilterControls({
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full border rounded p-2"
+              className="w-full rounded-[0.5rem] p-2 bg-background text-foreground border border-input hover:border-ring focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
             />
           )}
         </div>
         <div>
-          <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+          <label htmlFor="end-date" className="block text-sm font-medium mb-1">End Date</label>
           {isLoading ? (
             <Skeleton className="w-full h-10" />
           ) : (
@@ -129,7 +129,7 @@ export default function FilterControls({
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full border rounded p-2"
+              className="w-full rounded-[0.5rem] p-2 bg-background text-foreground border border-input hover:border-ring focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none"
             />
           )}
         </div>

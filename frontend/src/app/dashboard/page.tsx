@@ -9,6 +9,8 @@ import TotalIskChart from '../components/TotalIskChart'
 import { Region, CharacterStats, Character, ChartConfig, Kill } from '../../lib/types'
 import { Skeleton } from "../components/ui/skeleton"
 import { Progress } from "../components/ui/progress"
+import Top10Killers from '../components/Top10Killers'
+import Top10Points from '../components/Top10Points'
 
 const fetchRegions = async (): Promise<Region[]> => {
   const response = await fetch('/api/regions')
@@ -171,6 +173,19 @@ export default function Dashboard() {
                 />
                 <TotalIskChart
                   iskDestroyedOverTime={iskDestroyedOverTime}
+                  startDate={startDate}
+                  endDate={endDate}
+                  chartConfig={chartConfig}
+                />
+                <Top10Killers
+                  characters={characters}
+                  startDate={startDate}
+                  endDate={endDate}
+                  chartConfig={chartConfig}
+                />
+                <Top10Points
+                  kills={allKills}
+                  characters={characters.map(char => ({ id: char.character_id, name: char.name }))}
                   startDate={startDate}
                   endDate={endDate}
                   chartConfig={chartConfig}

@@ -66,7 +66,11 @@ export default function CharacterTable({ characters, allKills }: CharacterTableP
         </TableHeader>
         <TableBody>
           {paginatedCharacters.map((character) => (
-            <TableRow key={character.character_id} onClick={() => handleCharacterClick(character)} className="cursor-pointer hover:bg-gray-100">
+            <TableRow 
+              key={character.character_id} 
+              onClick={() => handleCharacterClick(character)} 
+              className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
               <TableCell>{character.name}</TableCell>
               <TableCell>{character.kill_count}</TableCell>
               <TableCell>{formatISK(character.total_isk)}</TableCell>
