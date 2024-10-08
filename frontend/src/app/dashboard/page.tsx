@@ -7,7 +7,6 @@ import FilterControls from '../components/FilterControls'
 import TotalKillsChart from '../components/TotalKillsChart'
 import TotalIskChart from '../components/TotalIskChart'
 import { Region, CharacterStats, Character, ChartConfig, Kill } from '../../lib/types'
-import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert"
 import { Skeleton } from "../components/ui/skeleton"
 import { Progress } from "../components/ui/progress"
 
@@ -19,10 +18,11 @@ const fetchRegions = async (): Promise<Region[]> => {
   return response.json()
 }
 
-const getLastMonday = () => {
+const getTwoWeeksAgoMonday = () => {
   const today = new Date()
-  const lastMonday = new Date(today.setDate(today.getDate() - (today.getDay() + 6) % 7))
-  return lastMonday.toISOString().split('T')[0]
+  const twoWeeksAgo = new Date(today.setDate(today.getDate() - 14))
+  const monday = new Date(twoWeeksAgo.setDate(twoWeeksAgo.getDate() - (twoWeeksAgo.getDay() + 6) % 7))
+  return monday.toISOString().split('T')[0]
 }
 
 const getTodayDate = () => {
@@ -32,11 +32,12 @@ const getTodayDate = () => {
 export default function Dashboard() {
   const [characters, setCharacters] = useState<CharacterStats[]>([])
   const [selectedRegions, setSelectedRegions] = useState<Array<{ id: number, name: string }>>([])
-  const [startDate, setStartDate] = useState<string>(getLastMonday())
+  const [startDate, setStartDate] = useState<string>(getTwoWeeksAgoMonday())
   const [endDate, setEndDate] = useState<string>(getTodayDate())
   const [isLoading, setIsLoading] = useState(false)
   const [killsOverTime, setKillsOverTime] = useState<{ date: string; kills: number }[]>([])
   const [iskDestroyedOverTime, setIskDestroyedOverTime] = useState<{ date: string; isk: number }[]>([])
+  const [allKills, setAllKills] = useState<Kill[]>([])
 
   const { data: regions, isLoading: isRegionsLoading, error: regionsError } = useQuery<Region[]>('regions', fetchRegions)
 
@@ -59,7 +60,7 @@ export default function Dashboard() {
       const characterResponse = await fetch('/api/characters')
       const characterData: Character[] = await characterResponse.json()
 
-      const statsPromises = selectedRegions.map(async (region) => {
+      const killsPromises = selectedRegions.map(async (region) => {
         const response = await fetch(`/api/kills/region/${region.id}?startDate=${startDate}&endDate=${endDate}`)
         if (!response.ok) {
           throw new Error(`Failed to fetch data for region ${region.id}`)
@@ -67,24 +68,26 @@ export default function Dashboard() {
         return response.json()
       })
 
-      const regionStats = await Promise.all(statsPromises)
-      const allKills = regionStats.flat()
+      const regionKills = await Promise.all(killsPromises)
+      const allKills = regionKills.flat()
+      setAllKills(allKills)
 
       const characterStats = characterData.map((character) => {
         const characterKills = allKills.filter((kill: Kill) => kill.CharacterID === character.id)
         const killCount = characterKills.length
-        const totalIsk = characterKills.reduce((sum, kill) => sum + (kill.ZkillData.TotalValue || 0), 0)
+        const totalIsk = characterKills.reduce((sum, kill) => sum + kill.ZkillData.TotalValue, 0)
+        const totalValue = characterKills.reduce((sum, kill) => sum + kill.ZkillData.TotalValue, 0)
 
         return {
           character_id: character.id,
           name: character.name,
           kill_count: killCount,
           total_isk: totalIsk,
-          total_value: totalIsk
+          total_value: totalValue
         }
       })
 
-      setCharacters(characterStats.filter(char => char.kill_count > 0))
+      setCharacters(characterStats)
 
       const killsOverTime = allKills.reduce((acc, kill) => {
         const date = kill.KillmailTime.split('T')[0]
@@ -131,12 +134,6 @@ export default function Dashboard() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <Alert className="mb-8">
-        <AlertTitle>Welcome to the EVE Ran Dashboard</AlertTitle>
-        <AlertDescription>
-          Use the filters below to narrow down your character statistics.
-        </AlertDescription>
-      </Alert>
       {isRegionsLoading ? (
         <Progress value={33} className="w-full mb-8" />
       ) : (
@@ -157,7 +154,13 @@ export default function Dashboard() {
           ) : (
             <>
               <div className="mb-8">
-                <CharacterTable characters={characters} />
+                <CharacterTable 
+                  characters={characters}
+                  allKills={allKills}
+                  startDate={startDate}
+                  endDate={endDate}
+                  selectedRegions={selectedRegions}
+                />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                 <TotalKillsChart

@@ -55,75 +55,90 @@ export default function FilterControls({
   }
 
   return (
-    <div className="flex flex-col space-y-4 sm:flex-row sm:space-x-4 sm:space-y-0 mb-4">
-      {isLoading || regions.length === 0 ? (
-        <Skeleton className="w-full sm:w-[200px] h-10" />
-      ) : (
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={open}
-              className="w-full sm:w-[200px] justify-between"
-            >
-              {selectedRegions.length > 0
-                ? `${selectedRegions.length} selected`
-                : "Select regions..."}
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-full sm:w-[200px] p-0">
-            <Command>
-              <CommandInput placeholder="Search regions..." />
-              <CommandEmpty>No region found.</CommandEmpty>
-              <CommandGroup className="max-h-[300px] overflow-y-auto">
-                {Array.isArray(regions) && regions.length > 0 ? (
-                  regions.map((region) => (
-                    <CommandItem
-                      key={region.region_id}
-                      onSelect={() => handleSelectRegion(region.region_id, region.name)}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          selectedRegions.some(r => r.id === region.region_id) ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {region.name}
-                    </CommandItem>
-                  ))
-                ) : (
-                  <CommandItem>No regions available</CommandItem>
-                )}
-              </CommandGroup>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      )}
-      {isLoading ? (
-        <Skeleton className="w-full sm:w-[200px] h-10" />
-      ) : (
-        <input
-          type="date"
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          className="w-full sm:w-[200px] border rounded p-2"
-        />
-      )}
-      {isLoading ? (
-        <Skeleton className="w-full sm:w-[200px] h-10" />
-      ) : (
-        <input
-          type="date"
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          className="w-full sm:w-[200px] border rounded p-2"
-        />
-      )}
-      <Button onClick={onApplyFilters} disabled={isLoading} className="w-full sm:w-auto">
-        {isLoading ? <Progress value={33} className="w-16" /> : "Apply Filters"}
-      </Button>
+    <div className="flex flex-col space-y-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Regions</label>
+          {isLoading || regions.length === 0 ? (
+            <Skeleton className="w-full h-10" />
+          ) : (
+            <Popover open={open} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={open}
+                  className="w-full justify-between"
+                >
+                  {selectedRegions.length > 0
+                    ? `${selectedRegions.length} selected`
+                    : "Select regions..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search regions..." />
+                  <CommandEmpty>No region found.</CommandEmpty>
+                  <CommandGroup className="max-h-[300px] overflow-y-auto">
+                    {Array.isArray(regions) && regions.length > 0 ? (
+                      regions.map((region) => (
+                        <CommandItem
+                          key={region.region_id}
+                          onSelect={() => handleSelectRegion(region.region_id, region.name)}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedRegions.some(r => r.id === region.region_id) ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {region.name}
+                        </CommandItem>
+                      ))
+                    ) : (
+                      <CommandItem>No regions available</CommandItem>
+                    )}
+                  </CommandGroup>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+        <div>
+          <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+          {isLoading ? (
+            <Skeleton className="w-full h-10" />
+          ) : (
+            <input
+              id="start-date"
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-full border rounded p-2"
+            />
+          )}
+        </div>
+        <div>
+          <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+          {isLoading ? (
+            <Skeleton className="w-full h-10" />
+          ) : (
+            <input
+              id="end-date"
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full border rounded p-2"
+            />
+          )}
+        </div>
+      </div>
+      <div className="flex justify-end">
+        <Button onClick={onApplyFilters} disabled={isLoading} className="w-full sm:w-auto">
+          {isLoading ? <Progress value={33} className="w-16" /> : "Apply Filters"}
+        </Button>
+      </div>
     </div>
   )
 }
