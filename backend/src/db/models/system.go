@@ -6,7 +6,7 @@ import "encoding/json"
 type System struct {
 	SystemID        int             `gorm:"primaryKey" json:"system_id"`
 	ConstellationID int             `json:"constellation_id"`
-	RegionID        int             `json:"region_id"` // Make sure this field exists
+	RegionID        int             `json:"region_id"`
 	Name            string          `json:"name"`
 	SecurityClass   string          `json:"security_class"`
 	SecurityStatus  float64         `json:"security_status"`

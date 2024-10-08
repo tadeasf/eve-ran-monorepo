@@ -24,7 +24,7 @@ func GetSystemByID(systemID int) (*models.System, error) {
 
 func GetSystemsByRegionID(regionID int) ([]models.System, error) {
 	var systems []models.System
-	err := db.DB.Where("constellation_id IN (SELECT constellation_id FROM constellations WHERE region_id = ?)", regionID).Find(&systems).Error
+	err := db.DB.Where("region_id = ?", regionID).Find(&systems).Error
 	return systems, err
 }
 
@@ -84,8 +84,7 @@ func FetchKillsByRegion(regionID int, page, pageSize int, startDate, endDate str
 
 	query := db.DB.Table("kills").
 		Joins("JOIN systems ON kills.solar_system_id = systems.system_id").
-		Joins("JOIN constellations ON systems.constellation_id = constellations.constellation_id").
-		Where("constellations.region_id = ?", regionID)
+		Where("systems.region_id = ?", regionID)
 
 	if startDate != "" {
 		query = query.Where("kills.kill_time >= ?", startDate)

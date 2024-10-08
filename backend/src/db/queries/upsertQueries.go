@@ -41,7 +41,7 @@ func BatchUpsertSystems(systems []*models.System) error {
 		for _, system := range systems {
 			err := tx.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "system_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"constellation_id", "name", "security_class", "security_status", "star_id", "planets", "stargates", "stations", "position"}),
+				DoUpdates: clause.AssignmentColumns([]string{"constellation_id", "region_id", "name", "security_class", "security_status", "star_id", "planets", "stargates", "stations", "position"}),
 			}).Create(system).Error
 			if err != nil {
 				return err

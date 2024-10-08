@@ -161,6 +161,11 @@ func fetchAndUpdateSystems() {
 				<-rateLimiter // Wait for rate limiter
 				system := fetchSystem(id)
 				if system != nil {
+					// Fetch constellation to get region_id
+					constellation, err := services.FetchConstellation(system.ConstellationID)
+					if err == nil {
+						system.RegionID = constellation.RegionID
+					}
 					systemsChan <- system
 				}
 			}(id)
@@ -225,6 +230,14 @@ func fetchSystem(id int) *models.System {
 	if err != nil {
 		log.Printf("Error unmarshaling system %d: %v", id, err)
 		return nil
+	}
+
+	// Fetch constellation to get region_id
+	constellation, err := services.FetchConstellation(system.ConstellationID)
+	if err == nil {
+		system.RegionID = constellation.RegionID
+	} else {
+		log.Printf("Error fetching constellation for system %d: %v", id, err)
 	}
 
 	return &system

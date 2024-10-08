@@ -438,3 +438,31 @@ func IsESIErrorLimit(err error) bool {
 	return strings.Contains(err.Error(), "ESI error limit reached") ||
 		strings.Contains(err.Error(), "This software has exceeded the error limit for ESI")
 }
+
+// Add this function to the existing esi.go file
+
+func FetchConstellation(constellationID int) (*models.Constellation, error) {
+	url := fmt.Sprintf("%s/universe/constellations/%d/?datasource=tranquility&language=en", esiBaseURL, constellationID)
+	resp, err := esiClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching constellation: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned non-OK status: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %v", err)
+	}
+
+	var constellation models.Constellation
+	err = json.Unmarshal(body, &constellation)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling constellation data: %v", err)
+	}
+
+	return &constellation, nil
+}
