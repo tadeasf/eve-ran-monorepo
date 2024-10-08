@@ -1,8 +1,8 @@
 export interface Region {
-  RegionID: number;
-  Name: string;
-  Description: string;
-  Constellations: number[]; // Assuming constellations is an array of IDs
+  region_id: number;
+  name: string;
+  description: string;
+  constellations: number[]; // Assuming constellations is an array of IDs
 }
 
 export interface CharacterStats {

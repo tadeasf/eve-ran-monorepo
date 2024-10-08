@@ -42,12 +42,12 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (regions) {
-      const placid = regions.find(r => r.Name === 'Placid')
-      const syndicate = regions.find(r => r.Name === 'Syndicate')
+      const placid = regions.find(r => r.name === 'Placid')
+      const syndicate = regions.find(r => r.name === 'Syndicate')
       if (placid && syndicate) {
         setSelectedRegions([
-          { id: placid.RegionID, name: placid.Name },
-          { id: syndicate.RegionID, name: syndicate.Name }
+          { id: placid.region_id, name: placid.name },
+          { id: syndicate.region_id, name: syndicate.name }
         ])
       }
     }
