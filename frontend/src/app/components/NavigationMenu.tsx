@@ -26,11 +26,6 @@ const components: { title: string; href: string; description: string }[] = [
     href: "/characters",
     description: "Manage your characters and view detailed information.",
   },
-  {
-    title: "Charts",
-    href: "/charts",
-    description: "View performance charts and analytics.",
-  },
 ]
 
 export function MainNav() {

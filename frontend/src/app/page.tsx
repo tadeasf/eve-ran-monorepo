@@ -12,9 +12,6 @@ export default function Home() {
         <Button asChild variant="secondary">
           <Link href="/characters">Character Management</Link>
         </Button>
-        <Button asChild variant="outline">
-          <Link href="/charts">Performance Charts</Link>
-        </Button>
       </div>
     </div>
   );
