@@ -2,6 +2,7 @@
 
 ![EVE Ran Services Design](https://github.com/tadeasf/eve-ran-monorepo/raw/main/docs/ran-services-design.png)
 
+![License: MIT](https://img.shields.io/badge/License-GPLv3-yellow.svg)
 **EVE Ran** is a web application for tracking and analyzing character kills in **EVE Online**.
 
 ## Demo
