@@ -1,23 +1,23 @@
-# Use Node.js LTS version
-FROM node:lts-alpine as builder
+# Use the official Bun image
+FROM oven/bun:1 as builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
-COPY package*.json ./
+# Copy package.json and bun.lockb
+COPY package.json bun.lockb ./
 
 # Install dependencies
-RUN npm ci
+RUN bun install --frozen-lockfile
 
 # Copy the rest of the code
 COPY . .
 
 # Build the app
-RUN npm run build
+RUN bun run build
 
 # Start a new stage for a smaller final image
-FROM node:lts-alpine
+FROM oven/bun:1
 
 WORKDIR /app
 
@@ -31,5 +31,4 @@ COPY --from=builder /app/public ./public
 EXPOSE 3000
 
 # Run the app
-CMD ["npm", "start"]
-
+CMD ["bun", "start"]
