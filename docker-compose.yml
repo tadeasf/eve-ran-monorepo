@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: eve_postgres
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./backend/postgres-data:/var/lib/postgresql/data
+    restart: always
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: eve_api
+    depends_on:
+      - postgres
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+    env_file:
+      - ./backend/.env
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: eve_frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    env_file:
+      - ./frontend/.env.local
+    restart: always
+
+  caddy:
+    image: caddy:2
+    container_name: eve_caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./backend/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+      - caddy_certificates:/root/.caddy
+    environment:
+      - ACME_AGREE=true
+    depends_on:
+      - api
+      - frontend
+    restart: always
+
+volumes:
+  caddy_data:
+  caddy_config:
+  caddy_certificates:
