@@ -71,7 +71,10 @@ export default function Dashboard() {
       })
 
       const regionKills = await Promise.all(killsPromises)
-      const allKills = regionKills.flat()
+      const allKills = regionKills.flat().filter((kill: Kill) => {
+        const killDate = new Date(kill.KillmailTime).toISOString().split('T')[0]
+        return killDate >= startDate && killDate <= endDate
+      })
       setAllKills(allKills)
 
       const characterStats = characterData.map((character) => {

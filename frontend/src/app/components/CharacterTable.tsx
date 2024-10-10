@@ -27,6 +27,7 @@ export default function CharacterTable({ characters, allKills }: CharacterTableP
     return 0
   })
 
+  const totalPages = Math.ceil(sortedCharacters.length / itemsPerPage)
   const paginatedCharacters = sortedCharacters.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
@@ -39,6 +40,7 @@ export default function CharacterTable({ characters, allKills }: CharacterTableP
       setSortColumn(column)
       setSortDirection('desc')
     }
+    setCurrentPage(1)
   }
 
   const SortableHeader = ({ column, children }: { column: keyof CharacterStats, children: React.ReactNode }) => (
@@ -85,10 +87,10 @@ export default function CharacterTable({ characters, allKills }: CharacterTableP
         >
           Previous
         </Button>
-        <span>Page {currentPage} of {Math.ceil(characters.length / itemsPerPage)}</span>
+        <span>Page {currentPage} of {totalPages}</span>
         <Button
-          onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(characters.length / itemsPerPage)))}
-          disabled={currentPage === Math.ceil(characters.length / itemsPerPage)}
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          disabled={currentPage === totalPages}
         >
           Next
         </Button>

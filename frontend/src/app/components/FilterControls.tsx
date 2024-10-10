@@ -54,6 +54,11 @@ export default function FilterControls({
     })
   }
 
+  const handleSelectAllRegions = () => {
+    setSelectedRegions(regions.map(region => ({ id: region.region_id, name: region.name })))
+    setOpen(false)
+  }
+
   return (
     <div className="flex flex-col space-y-4 mb-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -80,6 +85,17 @@ export default function FilterControls({
                 <Command>
                   <CommandInput placeholder="Search regions..." />
                   <CommandEmpty>No region found.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem onSelect={handleSelectAllRegions}>
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedRegions.length === regions.length ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      Select All Regions
+                    </CommandItem>
+                  </CommandGroup>
                   <CommandGroup className="max-h-[300px] overflow-y-auto">
                     {Array.isArray(regions) && regions.length > 0 ? (
                       regions.map((region) => (
