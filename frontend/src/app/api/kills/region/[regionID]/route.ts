@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server'
 import { Kill } from '@/lib/types'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL
+// Use internal service name in production, external URL in development
+const API_URL = process.env.NODE_ENV === 'production' 
+  ? 'http://api:8080' 
+  : process.env.NEXT_PUBLIC_API_URL
 const FETCH_TIMEOUT = 120000 // 120 seconds timeout
 
 export async function GET(

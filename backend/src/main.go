@@ -16,7 +16,7 @@ import (
 // @title EVE Ran API
 // @version 1.0
 // @description This is the API for EVE Ran application.
-// @host localhost:8080
+// @host api.tundragon.space
 // @BasePath /
 // @schemes http https
 
@@ -78,6 +78,13 @@ func main() {
 	// New data routes
 	r.GET("/characters", routes.GetAllCharacters)
 	r.GET("/kills", routes.GetAllKills)
+
+	// Character search and batch management
+	r.GET("/characters/search", routes.SearchCharacters)
+	r.POST("/characters/batch", routes.BatchAddCharacters)
+	
+	// Admin dashboard routes
+	r.GET("/admin/stats", routes.GetDashboardStats)
 
 	// Add this line to register the GetKillsByRegion route
 	r.GET("/kills/region/:regionID", routes.GetKillsByRegion)

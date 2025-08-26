@@ -1,13 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    async rewrites() {
-      return [
-        {
-          source: '/api/:path*',
-          destination: 'https://ran.backend.tadeasfort.com/:path*',
-        },
-      ]
-    },
-  }
-  
-  module.exports = nextConfig
+  images: {
+    domains: ['images.evetech.net'],
+  },
+  experimental: {
+    optimizePackageImports: ['@radix-ui/react-icons', 'lucide-react']
+  },
+  webpack: (config, { isServer }) => {
+    // Fix for node-fetch warning
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        'node-fetch': false,
+      }
+    }
+    return config
+  },
+}
+
+module.exports = nextConfig

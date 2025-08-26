@@ -11,12 +11,12 @@ import {
   CommandGroup,
   CommandInput,
   CommandItem,
-} from "@/app/components/ui/command"
+} from "@/components/ui/command"
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/app/components/ui/popover"
+} from "@/components/ui/popover"
 
 interface FilterControlsProps {
   regions: Region[]
@@ -52,11 +52,16 @@ export default function FilterControls({
         return [...prev, { id: regionId, name: regionName }]
       }
     })
+    // Don't close the popover when selecting/deselecting regions
+    // setOpen(false) - removed this line
   }
 
   const handleSelectAllRegions = () => {
     setSelectedRegions(regions.map(region => ({ id: region.region_id, name: region.name })))
-    setOpen(false)
+  }
+
+  const handleClearAllRegions = () => {
+    setSelectedRegions([])
   }
 
   return (
@@ -81,12 +86,15 @@ export default function FilterControls({
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-full p-0">
+              <PopoverContent className="w-[400px] p-0">
                 <Command>
                   <CommandInput placeholder="Search regions..." />
                   <CommandEmpty>No region found.</CommandEmpty>
                   <CommandGroup>
-                    <CommandItem onSelect={handleSelectAllRegions}>
+                    <CommandItem
+                      value="select-all"
+                      onSelect={() => handleSelectAllRegions()}
+                    >
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
@@ -95,12 +103,25 @@ export default function FilterControls({
                       />
                       Select All Regions
                     </CommandItem>
+                    <CommandItem
+                      value="clear-all"
+                      onSelect={() => handleClearAllRegions()}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedRegions.length === 0 ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      Clear All Regions
+                    </CommandItem>
                   </CommandGroup>
                   <CommandGroup className="max-h-[300px] overflow-y-auto">
                     {Array.isArray(regions) && regions.length > 0 ? (
                       regions.map((region) => (
                         <CommandItem
                           key={region.region_id}
+                          value={region.name.toLowerCase()}
                           onSelect={() => handleSelectRegion(region.region_id, region.name)}
                         >
                           <Check

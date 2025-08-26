@@ -466,3 +466,101 @@ func FetchConstellation(constellationID int) (*models.Constellation, error) {
 
 	return &constellation, nil
 }
+
+// SearchCharactersByName searches for characters by name using EVE ESI API
+func SearchCharactersByName(searchTerm string) ([]int64, error) {
+	// Use the /universe/ids/ endpoint which resolves names to IDs
+	url := fmt.Sprintf("%s/universe/ids/?datasource=tranquility", esiBaseURL)
+	
+	// Create the request body with the search term
+	requestBody := []string{searchTerm}
+	jsonBody, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling request body: %v", err)
+	}
+	
+	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonBody)))
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
+	
+	// Set headers
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran")
+	
+	resp, err := esiClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error searching characters: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned non-OK status: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var searchResult struct {
+		Characters []struct {
+			ID   int64  `json:"id"`
+			Name string `json:"name"`
+		} `json:"characters"`
+	}
+
+	err = json.Unmarshal(body, &searchResult)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling search result: %v", err)
+	}
+
+	// Extract character IDs
+	var characterIDs []int64
+	for _, character := range searchResult.Characters {
+		characterIDs = append(characterIDs, character.ID)
+	}
+
+	return characterIDs, nil
+}
+
+// FetchCharacterInfo fetches character information by ID
+func FetchCharacterInfo(characterID int64) (*models.Character, error) {
+	url := fmt.Sprintf("%s/characters/%d/?datasource=tranquility", esiBaseURL, characterID)
+	
+	resp, err := esiClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching character info: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned non-OK status: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %v", err)
+	}
+
+	var esiCharacter struct {
+		CharacterID    int64   `json:"character_id"`
+		Name           string  `json:"name"`
+		SecurityStatus float64 `json:"security_status"`
+		Title          string  `json:"title"`
+		RaceID         int     `json:"race_id"`
+	}
+
+	err = json.Unmarshal(body, &esiCharacter)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling character data: %v", err)
+	}
+
+	return &models.Character{
+		ID:             characterID,
+		Name:           esiCharacter.Name,
+		SecurityStatus: esiCharacter.SecurityStatus,
+		Title:          esiCharacter.Title,
+		RaceID:         esiCharacter.RaceID,
+	}, nil
+}

@@ -80,7 +80,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     environment:
-      - NEXT_PUBLIC_API_URL=https://ran.backend.tadeasfort.com
+      - NEXT_PUBLIC_API_URL=https://api.tundragon.space
     networks:
       - frontend
     deploy:
