@@ -44,15 +44,12 @@ export default function Dashboard() {
   const { data: regions, isLoading: isRegionsLoading, error: regionsError } = useQuery<Region[]>('regions', fetchRegions)
 
   useEffect(() => {
-    if (regions) {
-      const placid = regions.find(r => r.name === 'Placid')
-      const syndicate = regions.find(r => r.name === 'Syndicate')
-      if (placid && syndicate) {
-        setSelectedRegions([
-          { id: placid.region_id, name: placid.name },
-          { id: syndicate.region_id, name: syndicate.name }
-        ])
-      }
+    if (regions && regions.length > 0) {
+      // Select all regions by default
+      setSelectedRegions(regions.map(region => ({
+        id: region.region_id,
+        name: region.name
+      })))
     }
   }, [regions])
 
@@ -159,7 +156,7 @@ export default function Dashboard() {
           ) : (
             <>
               <div className="mb-8">
-                <CharacterTable 
+                <CharacterTable
                   characters={characters}
                   allKills={allKills}
                   startDate={startDate}

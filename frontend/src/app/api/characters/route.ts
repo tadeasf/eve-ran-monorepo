@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const data = await response.json()
+    const data = await response.json() as Record<string, unknown>
     return NextResponse.json(data)
   } catch (error) {
     console.error('Error adding character:', error)

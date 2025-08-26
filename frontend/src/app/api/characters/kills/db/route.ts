@@ -22,6 +22,6 @@ export async function GET(request: Request) {
   })
 
   const response = await fetch(url.toString())
-  const data = await response.json()
+  const data = await response.json() as Record<string, unknown>
   return NextResponse.json(data)
 }

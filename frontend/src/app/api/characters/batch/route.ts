@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       throw new Error(`Backend API error: ${response.status} ${response.statusText}`)
     }
     
-    const data = await response.json()
+    const data = await response.json() as Record<string, unknown>
     return NextResponse.json(data)
   } catch (error) {
     console.error('Error batch adding characters:', error)

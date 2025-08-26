@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import fetch from 'node-fetch'
 
 // Use internal service name in production, external URL in development
 const API_URL = process.env.NODE_ENV === 'production' 
@@ -7,21 +6,41 @@ const API_URL = process.env.NODE_ENV === 'production'
   : process.env.NEXT_PUBLIC_API_URL
 
 async function fetchCharacterName(characterId: number): Promise<string> {
-  const response = await fetch(`https://zkillboard.com/character/${characterId}/`, {
-    headers: {
-      'User-Agent': 'EVE RAN Application (https://github.com/tadeasfort/eve-ran-monorepo)'
+  try {
+    // First try EVE ESI API
+    const response = await fetch(`https://esi.evetech.net/latest/characters/${characterId}/`, {
+      headers: {
+        'User-Agent': 'EVE RAN Application (https://github.com/tadeasfort/eve-ran-monorepo)'
+      }
+    })
+    
+    if (response.ok) {
+      const data = await response.json() as { name?: string }
+      return data.name || 'Unknown'
     }
-  })
-  if (!response.ok) {
-    throw new Error(`Failed to fetch character name: ${response.status} ${response.statusText}`)
+    
+    // Fallback to zkillboard scraping if ESI fails
+    const zkbResponse = await fetch(`https://zkillboard.com/character/${characterId}/`, {
+      headers: {
+        'User-Agent': 'EVE RAN Application (https://github.com/tadeasfort/eve-ran-monorepo)'
+      }
+    })
+    
+    if (zkbResponse.ok) {
+      const html = await zkbResponse.text()
+      const nameMatch = html.match(/<meta name="description" content="([^:]+):/)
+      return nameMatch ? nameMatch[1].trim() : 'Unknown'
+    }
+    
+    return 'Unknown'
+  } catch (error) {
+    console.error(`Failed to fetch character name for ${characterId}:`, error)
+    return 'Unknown'
   }
-  const html = await response.text()
-  const nameMatch = html.match(/<meta name="description" content="([^:]+):/)
-  return nameMatch ? nameMatch[1].trim() : 'Unknown'
 }
 
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: { id: string } }
 ) {
   const characterId = params.id
