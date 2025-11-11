@@ -7,8 +7,10 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	_ "github.com/tadeasf/eve-ran/docs"
+	"github.com/tadeasf/eve-ran/src/cache"
 	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/jobs"
+	"github.com/tadeasf/eve-ran/src/middleware"
 	"github.com/tadeasf/eve-ran/src/routes"
 	"github.com/tadeasf/eve-ran/src/utils"
 )
@@ -25,6 +27,12 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 
 	db.InitDB()
+
+	// Initialize Redis cache
+	if err := cache.InitRedis(); err != nil {
+		utils.ErrorLogger.Fatalf("Failed to initialize Redis: %v", err)
+	}
+	defer cache.CloseRedis()
 
 	// Add a delay to allow initial data to be stored
 	time.Sleep(1 * time.Minute)
@@ -45,6 +53,9 @@ func main() {
 
 	r := gin.Default()
 
+	// Create cache middleware with 5-minute TTL
+	cacheMiddleware := middleware.CacheMiddleware(5 * time.Minute)
+
 	// zKillboard routes
 	r.POST("/characters", routes.AddCharacter)
 	r.DELETE("/characters/:id", routes.RemoveCharacter)
@@ -54,9 +65,9 @@ func main() {
 	r.POST("/regions/fetch", routes.FetchAndStoreRegions)
 	r.GET("/regions", routes.GetAllRegions)
 
-	// System routes
+	// System routes (cached)
 	r.POST("/systems/fetch", routes.FetchAndStoreSystems)
-	r.GET("/systems", routes.GetAllSystems)
+	r.GET("/systems", cacheMiddleware, routes.GetAllSystems)
 	r.GET("/systems/:id", routes.GetSystemByID)
 	r.GET("/systems/region/:regionID", routes.GetSystemsByRegion)
 
@@ -75,19 +86,19 @@ func main() {
 	r.GET("/characters/:id/killmails", routes.GetCharacterKillmails)
 	r.GET("/characters/stats", routes.GetAllCharacterStats)
 
-	// New data routes
+	// New data routes (cached)
 	r.GET("/characters", routes.GetAllCharacters)
-	r.GET("/kills", routes.GetAllKills)
+	r.GET("/kills", cacheMiddleware, routes.GetAllKills)
 
 	// Character search and batch management
 	r.GET("/characters/search", routes.SearchCharacters)
 	r.POST("/characters/batch", routes.BatchAddCharacters)
-	
-	// Admin dashboard routes
-	r.GET("/admin/stats", routes.GetDashboardStats)
 
-	// Add this line to register the GetKillsByRegion route
-	r.GET("/kills/region/:regionID", routes.GetKillsByRegion)
+	// Admin dashboard routes (cached)
+	r.GET("/admin/stats", cacheMiddleware, routes.GetDashboardStats)
+
+	// Kill by region route (cached)
+	r.GET("/kills/region/:regionID", cacheMiddleware, routes.GetKillsByRegion)
 
 	// Setup Swagger
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

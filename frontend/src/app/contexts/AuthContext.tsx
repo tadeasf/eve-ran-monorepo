@@ -4,8 +4,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 
 interface AuthContextType {
     isAuthenticated: boolean
-    login: (username: string, password: string) => boolean
-    logout: () => void
+    login: (username: string, password: string) => Promise<boolean>
+    logout: () => Promise<void>
     loading: boolean
 }
 
@@ -16,30 +16,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        // Check if user is already authenticated on mount
-        const authStatus = localStorage.getItem('tundragon_auth')
-        if (authStatus === 'true') {
-            setIsAuthenticated(true)
-        }
-        setLoading(false)
+        // Check auth status with server on mount
+        checkAuthStatus()
     }, [])
 
-    const login = (username: string, password: string): boolean => {
-        // Simple authentication against environment variables
-        const adminUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || 'admin'
-        const adminPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'TnDrg2024SecCorp'
-
-        if (username === adminUsername && password === adminPassword) {
-            setIsAuthenticated(true)
-            localStorage.setItem('tundragon_auth', 'true')
-            return true
+    const checkAuthStatus = async () => {
+        try {
+            const response = await fetch('/api/admin/check-auth')
+            if (response.ok) {
+                setIsAuthenticated(true)
+            } else {
+                setIsAuthenticated(false)
+            }
+        } catch {
+            setIsAuthenticated(false)
+        } finally {
+            setLoading(false)
         }
-        return false
     }
 
-    const logout = () => {
-        setIsAuthenticated(false)
-        localStorage.removeItem('tundragon_auth')
+    const login = async (username: string, password: string): Promise<boolean> => {
+        try {
+            const response = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }),
+            })
+
+            if (response.ok) {
+                setIsAuthenticated(true)
+                return true
+            }
+            return false
+        } catch {
+            return false
+        }
+    }
+
+    const logout = async () => {
+        try {
+            await fetch('/api/admin/logout', { method: 'POST' })
+        } catch {
+            // Ignore errors during logout
+        } finally {
+            setIsAuthenticated(false)
+        }
     }
 
     return (

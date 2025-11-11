@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { setAdminAuth } from "@/lib/auth";
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -32,7 +31,6 @@ export default function AdminLogin() {
       });
 
       if (response.ok) {
-        setAdminAuth();
         router.push('/admin');
       } else {
         setError('Invalid credentials');
@@ -45,7 +43,7 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
+    <div className="flex min-h-screen items-start justify-center p-4 pt-20">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">

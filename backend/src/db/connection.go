@@ -46,6 +46,13 @@ func InitDB() {
 	if err != nil {
 		log.Fatal("Failed to migrate schema:", err)
 	}
+
+	// Run index migrations for performance optimization
+	err = RunIndexMigrations()
+	if err != nil {
+		log.Printf("Warning: Index migrations failed (non-fatal): %v", err)
+		// Don't fail startup if indexes can't be created, just log warning
+	}
 }
 
 func MigrateSchema() error {

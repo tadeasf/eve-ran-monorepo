@@ -20,6 +20,12 @@ const fetchRegions = async (): Promise<Region[]> => {
   return response.json()
 }
 
+const getDaysAgoDate = (daysAgo: number): string => {
+  const date = new Date()
+  date.setDate(date.getDate() - daysAgo)
+  return date.toISOString().split('T')[0]
+}
+
 const getTwoWeeksAgoMonday = () => {
   const today = new Date()
   const twoWeeksAgo = new Date(today.setDate(today.getDate() - 14))
@@ -31,11 +37,43 @@ const getTodayDate = () => {
   return new Date().toISOString().split('T')[0]
 }
 
+// Load dashboard settings from localStorage
+const loadDashboardSettings = () => {
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('dashboard_settings')
+      if (saved) {
+        return JSON.parse(saved)
+      }
+    } catch (e) {
+      console.error('Failed to parse dashboard settings:', e)
+    }
+  }
+  return null
+}
+
 export default function Dashboard() {
   const [characters, setCharacters] = useState<CharacterStats[]>([])
   const [selectedRegions, setSelectedRegions] = useState<Array<{ id: number, name: string }>>([])
-  const [startDate, setStartDate] = useState<string>(getTwoWeeksAgoMonday())
-  const [endDate, setEndDate] = useState<string>(getTodayDate())
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+
+  // Initialize dates with settings or defaults
+  const [startDate, setStartDate] = useState<string>(() => {
+    const settings = loadDashboardSettings()
+    if (settings && settings.defaultStartDate) {
+      return getDaysAgoDate(parseInt(settings.defaultStartDate))
+    }
+    return getTwoWeeksAgoMonday()
+  })
+
+  const [endDate, setEndDate] = useState<string>(() => {
+    const settings = loadDashboardSettings()
+    if (settings && settings.defaultEndDate) {
+      return getDaysAgoDate(parseInt(settings.defaultEndDate))
+    }
+    return getTodayDate()
+  })
+
   const [isLoading, setIsLoading] = useState(false)
   const [killsOverTime, setKillsOverTime] = useState<{ date: string; kills: number }[]>([])
   const [iskDestroyedOverTime, setIskDestroyedOverTime] = useState<{ date: string; isk: number }[]>([])
@@ -44,14 +82,30 @@ export default function Dashboard() {
   const { data: regions, isLoading: isRegionsLoading, error: regionsError } = useQuery<Region[]>('regions', fetchRegions)
 
   useEffect(() => {
-    if (regions && regions.length > 0) {
-      // Select all regions by default
-      setSelectedRegions(regions.map(region => ({
-        id: region.region_id,
-        name: region.name
-      })))
+    if (regions && regions.length > 0 && !settingsLoaded) {
+      // Load saved settings or use defaults
+      const settings = loadDashboardSettings()
+
+      if (settings && settings.defaultRegions && settings.defaultRegions.length > 0) {
+        // Use saved region preferences
+        const savedRegions = regions
+          .filter(region => settings.defaultRegions.includes(region.region_id))
+          .map(region => ({
+            id: region.region_id,
+            name: region.name
+          }))
+        setSelectedRegions(savedRegions)
+      } else {
+        // Select all regions by default
+        setSelectedRegions(regions.map(region => ({
+          id: region.region_id,
+          name: region.name
+        })))
+      }
+
+      setSettingsLoaded(true)
     }
-  }, [regions])
+  }, [regions, settingsLoaded])
 
   const fetchCharacterStats = useCallback(async () => {
     setIsLoading(true)

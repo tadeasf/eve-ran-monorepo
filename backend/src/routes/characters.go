@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tadeasf/eve-ran/src/db"
+	"github.com/tadeasf/eve-ran/src/db/models"
 	"github.com/tadeasf/eve-ran/src/db/queries"
 	"github.com/tadeasf/eve-ran/src/services"
 )
@@ -28,21 +30,44 @@ func GetAllCharacters(c *gin.Context) {
 	c.JSON(http.StatusOK, characters)
 }
 
-// GetAllKills retrieves all kills from the database
+// GetAllKills retrieves all kills from the database with optional filters
 // @Summary Get all kills
-// @Description Fetch all kills from the database
+// @Description Fetch all kills from the database, optionally filtered by character_id and date range
 // @Tags kills
 // @Accept json
 // @Produce json
+// @Param character_id query int false "Filter by character ID"
+// @Param start_date query string false "Start date (YYYY-MM-DD)"
+// @Param end_date query string false "End date (YYYY-MM-DD)"
 // @Success 200 {array} models.Kill
 // @Failure 500 {object} models.ErrorResponse
 // @Router /kills [get]
 func GetAllKills(c *gin.Context) {
-	kills, err := queries.GetAllKills()
-	if err != nil {
+	// Get optional query parameters
+	characterIDStr := c.Query("character_id")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+
+	// Build query with filters
+	query := db.DB.Preload("ZkillData")
+
+	if characterIDStr != "" {
+		characterID, err := strconv.ParseInt(characterIDStr, 10, 64)
+		if err == nil {
+			query = query.Where("character_id = ?", characterID)
+		}
+	}
+
+	if startDate != "" && endDate != "" {
+		query = query.Where("killmail_time BETWEEN ? AND ?", startDate, endDate)
+	}
+
+	var kills []models.Kill
+	if err := query.Find(&kills).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, kills)
 }
 
@@ -270,13 +295,13 @@ func GetDashboardStats(c *gin.Context) {
 	}
 	stats["total_characters"] = len(characters)
 
-	// Get total kills
-	kills, err := queries.GetAllKills()
+	// Get total kills (optimized with COUNT query instead of loading all records)
+	totalKills, err := queries.GetKillCount()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	stats["total_kills"] = len(kills)
+	stats["total_kills"] = totalKills
 
 	// Get total regions
 	regions, err := queries.GetAllRegions()
@@ -286,15 +311,13 @@ func GetDashboardStats(c *gin.Context) {
 	}
 	stats["total_regions"] = len(regions)
 
-	// Get recent activity (kills from last 7 days)
-	// This is a simplified version - you might want to make this more sophisticated
-	recentCount := 0
-	for _, kill := range kills {
-		if time.Since(kill.KillmailTime).Hours() < 168 { // 7 days * 24 hours
-			recentCount++
-		}
+	// Get recent activity (kills from last 7 days) - optimized with COUNT query
+	recentActivity, err := queries.GetRecentKillCount(7)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
-	stats["recent_activity"] = recentCount
+	stats["recent_activity"] = recentActivity
 
 	c.JSON(http.StatusOK, stats)
 }

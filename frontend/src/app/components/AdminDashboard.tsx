@@ -20,6 +20,8 @@ import {
 } from 'lucide-react'
 import { BatchCharacterManager } from './BatchCharacterManager'
 import { AdminCharacterManager } from './AdminCharacterManager'
+import { AdminAnalytics } from './AdminAnalytics'
+import { AdminSettings } from './AdminSettings'
 import { getDashboardStats } from '@/app/lib/eveApi'
 
 type AdminView = 'overview' | 'characters' | 'batch-add' | 'analytics' | 'settings'
@@ -187,52 +189,18 @@ export function AdminDashboard() {
                 )
 
             case 'analytics':
-                return (
-                    <div className="space-y-6">
-                        <div>
-                            <h1 className="text-3xl font-bold">Analytics</h1>
-                            <p className="text-muted-foreground">
-                                Detailed analytics and reporting
-                            </p>
-                        </div>
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Analytics Dashboard</CardTitle>
-                                <CardDescription>
-                                    Advanced analytics coming soon
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-muted-foreground">
-                                    Enhanced analytics dashboard will be available here.
-                                </p>
-                            </CardContent>
-                        </Card>
-                    </div>
-                )
+                return <AdminAnalytics />
 
             case 'settings':
                 return (
                     <div className="space-y-6">
                         <div>
-                            <h1 className="text-3xl font-bold">Settings</h1>
+                            <h1 className="text-3xl font-bold">Dashboard Settings</h1>
                             <p className="text-muted-foreground">
-                                Configure system settings
+                                Configure your default dashboard filters and preferences
                             </p>
                         </div>
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>System Configuration</CardTitle>
-                                <CardDescription>
-                                    Manage system-wide settings
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-muted-foreground">
-                                    System configuration options will be available here.
-                                </p>
-                            </CardContent>
-                        </Card>
+                        <AdminSettings />
                     </div>
                 )
 

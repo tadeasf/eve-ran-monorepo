@@ -104,17 +104,17 @@ export interface ChartConfig {
 }
 
 export interface System {
-  SystemID: number;
-  ConstellationID: number;
-  RegionID: number;
-  Name: string;
-  SecurityClass: string;
-  SecurityStatus: number;
-  StarID: number;
-  Planets: string; // Change to string as it's stored as json.RawMessage in Go
-  Stargates: string; // Change to string as it's stored as json.RawMessage in Go
-  Stations: string; // Change to string as it's stored as json.RawMessage in Go
-  Position: string; // Change to string as it's stored as json.RawMessage in Go
+  system_id: number;
+  constellation_id: number;
+  region_id: number;
+  name: string;
+  security_class: string;
+  security_status: number;
+  star_id: number;
+  planets: unknown; // JSON data from backend
+  stargates: unknown; // JSON data from backend
+  stations: unknown; // JSON data from backend
+  position: unknown; // JSON data from backend
 }
 
 // New interfaces to replace 'any' types
