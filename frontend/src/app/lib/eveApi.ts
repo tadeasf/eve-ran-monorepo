@@ -504,25 +504,35 @@ export async function getRecentCompetitionWinners(): Promise<CompetitionWinner[]
  * Get year-to-date competition winners (first place for each month in current year)
  */
 export async function getYearToDateWinners(): Promise<CompetitionWinner[]> {
-    try {
-        const response = await fetch(
-            `${API_BASE_URL}/competition/ytd-winners`,
-            {
-                headers: {
-                    'Accept': 'application/json',
-                }
-            }
-        )
+    const response = await fetch(`${API_BASE_URL}/competition/ytd-winners`, {
+        credentials: 'include',
+        headers: {
+            Accept: 'application/json',
+        },
+    })
 
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status} ${response.statusText}`)
-        }
-
-        const data = await response.json()
-        // Ensure we always return an array
-        return Array.isArray(data) ? data : []
-    } catch (error) {
-        console.error('Error fetching year-to-date winners:', error)
-        throw error
+    if (!response.ok) {
+        console.error('Failed to fetch year-to-date winners:', response.statusText)
+        throw new Error('Failed to fetch year-to-date winners')
     }
+
+    const data = await response.json()
+    return data || []
+}
+
+export async function getAllRegions(): Promise<{ region_id: number; name: string; description: string; constellations: number[] }[]> {
+    const response = await fetch(`${API_BASE_URL}/regions`, {
+        credentials: 'include',
+        headers: {
+            Accept: 'application/json',
+        },
+    })
+
+    if (!response.ok) {
+        console.error('Failed to fetch regions:', response.statusText)
+        throw new Error('Failed to fetch regions')
+    }
+
+    const data = await response.json()
+    return data || []
 }

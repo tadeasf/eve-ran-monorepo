@@ -14,11 +14,21 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Trophy, Target, TrendingUp, Calendar } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from '@/components/ui/dialog'
+import { Trophy, Target, TrendingUp, Calendar, Eye } from 'lucide-react'
 import {
     getCurrentCompetitionStandings,
     getCompetitionSettings,
     getYearToDateWinners,
+    getAllRegions,
     type CompetitionStanding,
     type CompetitionSettings,
     type CompetitionWinner
@@ -30,6 +40,8 @@ export default function CompetitionPage() {
     const [ytdWinners, setYtdWinners] = useState<CompetitionWinner[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+    const [allRegions, setAllRegions] = useState<{ region_id: number; name: string }[]>([])
+    const [isLoadingRegions, setIsLoadingRegions] = useState(false)
 
     useEffect(() => {
         const loadData = async () => {
@@ -171,6 +183,64 @@ export default function CompetitionPage() {
                         <p className="text-xs text-muted-foreground">
                             Tracked regions
                         </p>
+                        {settings?.regions && settings.regions.length > 0 && (
+                            <Dialog>
+                                <DialogTrigger asChild>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full mt-2"
+                                        onClick={async () => {
+                                            if (allRegions.length === 0) {
+                                                setIsLoadingRegions(true)
+                                                try {
+                                                    const regions = await getAllRegions()
+                                                    setAllRegions(regions)
+                                                } catch (err) {
+                                                    console.error('Failed to fetch regions:', err)
+                                                } finally {
+                                                    setIsLoadingRegions(false)
+                                                }
+                                            }
+                                        }}
+                                    >
+                                        <Eye className="size-4 mr-2" />
+                                        Show Regions
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-md">
+                                    <DialogHeader>
+                                        <DialogTitle>Tracked Regions</DialogTitle>
+                                        <DialogDescription>
+                                            The following regions are being tracked for this competition
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="max-h-96 overflow-y-auto">
+                                        {isLoadingRegions ? (
+                                            <div className="flex items-center justify-center py-8">
+                                                <div className="size-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2">
+                                                {allRegions
+                                                    .filter(region => settings?.regions.includes(region.region_id))
+                                                    .map(region => (
+                                                        <div
+                                                            key={region.region_id}
+                                                            className="flex items-center justify-between rounded-lg border p-3"
+                                                        >
+                                                            <span className="font-medium">{region.name}</span>
+                                                            <Badge variant="secondary" className="ml-2">
+                                                                {region.region_id}
+                                                            </Badge>
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+                        )}
                     </CardContent>
                 </Card>
             </div>
