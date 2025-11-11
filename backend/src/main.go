@@ -51,6 +51,9 @@ func main() {
 		}
 	}()
 
+	// Start the competition cron job
+	go jobs.StartCompetitionCron()
+
 	r := gin.Default()
 
 	// Create cache middleware with 5-minute TTL
@@ -99,6 +102,15 @@ func main() {
 
 	// Kill by region route (cached)
 	r.GET("/kills/region/:regionID", cacheMiddleware, routes.GetKillsByRegion)
+
+	// Competition routes
+	r.GET("/competition/settings", routes.GetCompetitionSettings)
+	r.POST("/competition/settings", routes.UpdateCompetitionSettings)
+	r.GET("/competition/current", cacheMiddleware, routes.GetCurrentCompetitionStandings)
+	r.GET("/competition/history", routes.GetAllCompetitionHistory)
+	r.GET("/competition/history/:month/:year", routes.GetCompetitionHistory)
+	r.GET("/competition/recent-winners", routes.GetRecentCompetitionWinners)
+	r.POST("/competition/save/:month/:year", routes.SaveMonthlyResults)
 
 	// Setup Swagger
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

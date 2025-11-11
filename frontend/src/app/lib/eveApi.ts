@@ -307,3 +307,195 @@ export async function getDashboardStats(): Promise<{
         throw error
     }
 }
+
+/**
+ * Competition API functions
+ */
+
+export interface CompetitionSettings {
+    id?: number;
+    metric: 'isk_destroyed' | 'kill_count';
+    regions: number[];
+    active: boolean;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface CompetitionStanding {
+    character_id: number;
+    character_name: string;
+    value: number;
+    rank: number;
+}
+
+export interface CompetitionWinner {
+    character_id: number;
+    character_name: string;
+    month: number;
+    year: number;
+    metric: string;
+    value: number;
+    rank: number;
+}
+
+/**
+ * Get current competition settings
+ */
+export async function getCompetitionSettings(): Promise<CompetitionSettings> {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/competition/settings`,
+            {
+                headers: {
+                    'Accept': 'application/json',
+                }
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status} ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        // Ensure regions is always an array, never null
+        if (!data.regions) {
+            data.regions = []
+        }
+        return data
+    } catch (error) {
+        console.error('Error fetching competition settings:', error)
+        throw error
+    }
+}
+
+/**
+ * Update competition settings
+ */
+export async function updateCompetitionSettings(settings: CompetitionSettings): Promise<CompetitionSettings> {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/competition/settings`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify(settings)
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status} ${response.statusText}`)
+        }
+
+        return await response.json()
+    } catch (error) {
+        console.error('Error updating competition settings:', error)
+        throw error
+    }
+}
+
+/**
+ * Get current competition standings
+ */
+export async function getCurrentCompetitionStandings(): Promise<CompetitionStanding[]> {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/competition/current`,
+            {
+                headers: {
+                    'Accept': 'application/json',
+                }
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status} ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        // Ensure we always return an array
+        return Array.isArray(data) ? data : []
+    } catch (error) {
+        console.error('Error fetching current competition standings:', error)
+        throw error
+    }
+}
+
+/**
+ * Get competition history for a specific month and year
+ */
+export async function getCompetitionHistory(month: number, year: number): Promise<CompetitionWinner[]> {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/competition/history/${month}/${year}`,
+            {
+                headers: {
+                    'Accept': 'application/json',
+                }
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status} ${response.statusText}`)
+        }
+
+        return await response.json()
+    } catch (error) {
+        console.error('Error fetching competition history:', error)
+        throw error
+    }
+}
+
+/**
+ * Get all competition history
+ */
+export async function getAllCompetitionHistory(): Promise<CompetitionWinner[]> {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/competition/history`,
+            {
+                headers: {
+                    'Accept': 'application/json',
+                }
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status} ${response.statusText}`)
+        }
+
+        return await response.json()
+    } catch (error) {
+        console.error('Error fetching all competition history:', error)
+        throw error
+    }
+}
+
+/**
+ * Get recent competition winners (last month)
+ */
+export async function getRecentCompetitionWinners(): Promise<CompetitionWinner[]> {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/competition/recent-winners`,
+            {
+                headers: {
+                    'Accept': 'application/json',
+                }
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status} ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        // Ensure we always return an array
+        return Array.isArray(data) ? data : []
+    } catch (error) {
+        console.error('Error fetching recent competition winners:', error)
+        throw error
+    }
+}

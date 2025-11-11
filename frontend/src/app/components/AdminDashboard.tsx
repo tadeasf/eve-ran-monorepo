@@ -16,15 +16,17 @@ import {
     Database,
     LogOut,
     Plus,
-    Upload
+    Upload,
+    Trophy
 } from 'lucide-react'
 import { BatchCharacterManager } from './BatchCharacterManager'
 import { AdminCharacterManager } from './AdminCharacterManager'
 import { AdminAnalytics } from './AdminAnalytics'
 import { AdminSettings } from './AdminSettings'
+import { AdminCompetitionSettings } from './AdminCompetitionSettings'
 import { getDashboardStats } from '@/app/lib/eveApi'
 
-type AdminView = 'overview' | 'characters' | 'batch-add' | 'analytics' | 'settings'
+type AdminView = 'overview' | 'characters' | 'batch-add' | 'analytics' | 'settings' | 'competition-settings'
 
 export function AdminDashboard() {
     const [activeView, setActiveView] = useState<AdminView>('overview')
@@ -59,6 +61,7 @@ export function AdminDashboard() {
         { id: 'characters' as AdminView, label: 'Characters', icon: Users },
         { id: 'batch-add' as AdminView, label: 'Batch Add', icon: Plus },
         { id: 'analytics' as AdminView, label: 'Analytics', icon: Database },
+        { id: 'competition-settings' as AdminView, label: 'Competition Settings', icon: Trophy },
         { id: 'settings' as AdminView, label: 'Settings', icon: Settings },
     ]
 
@@ -190,6 +193,19 @@ export function AdminDashboard() {
 
             case 'analytics':
                 return <AdminAnalytics />
+
+            case 'competition-settings':
+                return (
+                    <div className="space-y-6">
+                        <div>
+                            <h1 className="text-3xl font-bold">Competition Settings</h1>
+                            <p className="text-muted-foreground">
+                                Configure competition parameters and tracking metrics
+                            </p>
+                        </div>
+                        <AdminCompetitionSettings />
+                    </div>
+                )
 
             case 'settings':
                 return (

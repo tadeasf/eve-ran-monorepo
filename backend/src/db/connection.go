@@ -65,6 +65,8 @@ func MigrateSchema() error {
 		&models.System{},
 		&models.Constellation{},
 		&models.ESIItem{},
+		&models.CompetitionSettings{},
+		&models.CompetitionResult{},
 	}
 
 	for _, model := range models {
