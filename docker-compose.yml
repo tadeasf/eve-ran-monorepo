@@ -3,7 +3,7 @@ services:
     image: postgres:16
     container_name: eve_postgres
     ports:
-      - "5435:5432"
+      - "12920:5432"
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -11,7 +11,17 @@ services:
     env_file:
       - ./backend/.env
     volumes:
-      - ./backend/postgres-data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    container_name: eve_redis
+    ports:
+      - "12923:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
     restart: always
 
   api:
@@ -19,14 +29,19 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: eve_api
+    ports:
+      - "12922:8080"
     depends_on:
       - postgres
+      - redis
     environment:
       - DB_HOST=${DB_HOST}
       - DB_PORT=${DB_PORT}
       - DB_USER=${DB_USER}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=${DB_NAME}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     env_file:
       - ./backend/.env
     restart: always
@@ -36,31 +51,17 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: eve_frontend
+    ports:
+      - "12921:3000"
+    depends_on:
+      - api
     environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://api.tundragon.space
     env_file:
       - ./frontend/.env.local
     restart: always
 
-  caddy:
-    image: caddy:2
-    container_name: eve_caddy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./backend/Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-      - caddy_certificates:/root/.caddy
-    environment:
-      - ACME_AGREE=true
-    depends_on:
-      - api
-      - frontend
-    restart: always
-
 volumes:
-  caddy_data:
-  caddy_config:
-  caddy_certificates:
+  postgres_data:
+  redis_data:

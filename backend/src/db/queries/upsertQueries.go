@@ -16,6 +16,10 @@ func UpsertCharacter(character *models.Character) error {
 	}).Create(character).Error
 }
 
+func DeleteCharacter(characterID int64) error {
+	return db.DB.Delete(&models.Character{}, characterID).Error
+}
+
 func UpsertKill(kill *models.Kill) error {
 	return db.DB.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "killmail_id"}},

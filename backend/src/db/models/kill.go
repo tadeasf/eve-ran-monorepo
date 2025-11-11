@@ -6,14 +6,14 @@ import (
 )
 
 type Kill struct {
-	ID            uint  `gorm:"primaryKey"`
-	KillmailID    int64 `gorm:"uniqueIndex"`
-	KillmailTime  time.Time
-	SolarSystemID int
-	CharacterID   int64
-	Victim        Victim `gorm:"embedded;embeddedPrefix:victim_"`
-	Attackers     []byte `gorm:"type:jsonb"`
-	ZkillData     Zkill  `gorm:"foreignKey:KillmailID;references:KillmailID"`
+	ID            uint      `gorm:"primaryKey"`
+	KillmailID    int64     `gorm:"uniqueIndex"`
+	KillmailTime  time.Time `gorm:"index:idx_killmail_time;index:idx_system_time,priority:2"`
+	SolarSystemID int       `gorm:"index:idx_solar_system_id;index:idx_system_time,priority:1"`
+	CharacterID   int64     `gorm:"index:idx_character_id"`
+	Victim        Victim    `gorm:"embedded;embeddedPrefix:victim_"`
+	Attackers     []byte    `gorm:"type:jsonb"`
+	ZkillData     Zkill     `gorm:"foreignKey:KillmailID;references:KillmailID"`
 }
 
 type Victim struct {

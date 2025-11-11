@@ -42,9 +42,22 @@ func InitDB() {
 
 	log.Println("Successfully connected to the database")
 
+	// Run data migrations first (before schema changes)
+	err = RunDataMigrations()
+	if err != nil {
+		log.Printf("Warning: Data migrations failed (non-fatal): %v", err)
+	}
+
 	err = MigrateSchema()
 	if err != nil {
 		log.Fatal("Failed to migrate schema:", err)
+	}
+
+	// Run index migrations for performance optimization
+	err = RunIndexMigrations()
+	if err != nil {
+		log.Printf("Warning: Index migrations failed (non-fatal): %v", err)
+		// Don't fail startup if indexes can't be created, just log warning
 	}
 }
 
@@ -58,6 +71,8 @@ func MigrateSchema() error {
 		&models.System{},
 		&models.Constellation{},
 		&models.ESIItem{},
+		&models.CompetitionSettings{},
+		&models.CompetitionResult{},
 	}
 
 	for _, model := range models {

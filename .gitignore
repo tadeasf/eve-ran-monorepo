@@ -1,4 +1,5 @@
 .env
 .env.local
 .env.production
-
+CLAUDE.md
+backend/main

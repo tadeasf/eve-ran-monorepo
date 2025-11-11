@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from 'react-query'
 import { ReactQueryDevtools } from 'react-query/devtools'
 import { ThemeProvider } from "./components/ThemeProvider"
+import { AuthProvider } from "./contexts/AuthContext"
 import { MainNav } from './components/NavigationMenu'
 
 const queryClient = new QueryClient()
@@ -14,21 +15,23 @@ export default function ClientLayout({
 }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="dark"
-        enableSystem
-        disableTransitionOnChange
-      >
-        <header className="bg-background border-b">
-          <div className="container mx-auto">
-            <MainNav />
-          </div>
-        </header>
-        <main className="container mx-auto py-6">
-          {children}
-        </main>
-      </ThemeProvider>
+      <AuthProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <header className="bg-background border-b">
+            <div className="container mx-auto">
+              <MainNav />
+            </div>
+          </header>
+          <main className="container mx-auto py-6">
+            {children}
+          </main>
+        </ThemeProvider>
+      </AuthProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
   )

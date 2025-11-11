@@ -2,64 +2,62 @@
 
 import * as React from "react"
 import Link from "next/link"
+import { Shield } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import {
   NavigationMenu,
-  NavigationMenuContent,
   NavigationMenuItem,
   NavigationMenuLink,
   NavigationMenuList,
-  NavigationMenuTrigger,
   navigationMenuTriggerStyle,
 } from "@/app/components/ui/navigation-menu"
 import { ModeToggle } from "./ModeToggle"
 
-const components: { title: string; href: string; description: string }[] = [
-  {
-    title: "Dashboard",
-    href: "/dashboard",
-    description: "View character statistics and apply filters.",
-  },
-  {
-    title: "Characters",
-    href: "/characters",
-    description: "Manage your characters and view detailed information.",
-  },
-]
-
 export function MainNav() {
   return (
-    <NavigationMenu>
-      <NavigationMenuList>
-        <NavigationMenuItem>
-          <Link href="/" legacyBehavior passHref>
-            <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-              Home
-            </NavigationMenuLink>
-          </Link>
-        </NavigationMenuItem>
-        <NavigationMenuItem>
-          <NavigationMenuTrigger>Pages</NavigationMenuTrigger>
-          <NavigationMenuContent>
-            <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
-              {components.map((component) => (
-                <ListItem
-                  key={component.title}
-                  title={component.title}
-                  href={component.href}
-                >
-                  {component.description}
-                </ListItem>
-              ))}
-            </ul>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
-      </NavigationMenuList>
-      <div className="ml-auto">
+    <div className="flex w-full items-center justify-between py-4">
+      {/* Logo Section */}
+      <Link href="/" className="flex items-center space-x-2">
+        <Shield className="size-8 text-primary" />
+        <div className="flex flex-col">
+          <span className="text-xl font-bold tracking-tight">Tundragon</span>
+          <span className="text-sm text-muted-foreground">Corporation</span>
+        </div>
+      </Link>
+
+      {/* Navigation */}
+      <NavigationMenu>
+        <NavigationMenuList>
+          <NavigationMenuItem>
+            <Link href="/dashboard" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                Dashboard
+              </NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/competition" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                Competition
+              </NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/admin" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                Admin
+              </NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+        </NavigationMenuList>
+      </NavigationMenu>
+
+      {/* Right side controls */}
+      <div className="flex items-center space-x-2">
         <ModeToggle />
       </div>
-    </NavigationMenu>
+    </div>
   )
 }
 

@@ -96,33 +96,6 @@ func AddCharacter(c *gin.Context) {
 
 }
 
-// RemoveCharacter removes a character
-// @Summary Remove a character
-// @Description Remove a character from the database
-// @Tags characters
-// @Accept json
-// @Produce json
-// @Param id path int true "Character ID"
-// @Success 204 "No Content"
-// @Failure 400 {object} models.ErrorResponse
-// @Failure 500 {object} models.ErrorResponse
-// @Router /characters/{id} [delete]
-func RemoveCharacter(c *gin.Context) {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid character ID"})
-		return
-	}
-
-	err = db.DB.Delete(&models.Character{}, id).Error
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.Status(http.StatusNoContent)
-}
-
 // GetCharacterKillsFromDB retrieves character kills from the database
 // @Summary Get character kills from database
 // @Description Fetch kills for a character from the database

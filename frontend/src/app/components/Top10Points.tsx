@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { Bar, BarChart, XAxis, YAxis, ResponsiveContainer } from "recharts"
 import { TrendingUp, TrendingDown } from "lucide-react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/app/components/ui/card"
@@ -21,6 +22,8 @@ interface Top10PointsProps {
 }
 
 export default function Top10Points({ kills, characters, startDate, endDate, chartConfig }: Top10PointsProps) {
+  const [characterNames, setCharacterNames] = React.useState<Record<number, string>>({})
+
   const characterPoints = kills.reduce((acc, kill) => {
     const characterId = kill.CharacterID
     const points = kill.ZkillData.Points
@@ -28,16 +31,68 @@ export default function Top10Points({ kills, characters, startDate, endDate, cha
     return acc
   }, {} as Record<number, number>)
 
+  const top10CharacterIds = Object.entries(characterPoints)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 10)
+    .map(([characterId]) => parseInt(characterId))
+
+  // Fetch missing character names
+  React.useEffect(() => {
+    const fetchMissingNames = async () => {
+      const missingIds = top10CharacterIds.filter(id => {
+        const hasInCharacters = characters.some(char => char.id === id)
+        const hasInCache = characterNames[id]
+        return !hasInCharacters && !hasInCache
+      })
+
+      if (missingIds.length > 0) {
+        try {
+          const namePromises = missingIds.map(async (id) => {
+            try {
+              const response = await fetch(`/api/characters/name/${id}`)
+              if (response.ok) {
+                const data = await response.json() as { name?: string }
+                return { id, name: data.name || `Character ${id}` }
+              }
+            } catch (error) {
+              console.error(`Failed to fetch name for character ${id}:`, error)
+            }
+            return { id, name: `Character ${id}` }
+          })
+
+          const nameResults = await Promise.all(namePromises)
+          const newNames = nameResults.reduce((acc, { id, name }) => {
+            acc[id] = name
+            return acc
+          }, {} as Record<number, string>)
+
+          setCharacterNames(prev => ({ ...prev, ...newNames }))
+        } catch (error) {
+          console.error('Failed to fetch character names:', error)
+        }
+      }
+    }
+
+    fetchMissingNames()
+  }, [top10CharacterIds, characters, characterNames])
+
+  const getCharacterName = (characterId: number): string => {
+    const character = characters.find(char => char.id === characterId)
+    if (character) return character.name
+    
+    const cachedName = characterNames[characterId]
+    if (cachedName) return cachedName
+    
+    return `Character ${characterId}`
+  }
+
   const top10Points = Object.entries(characterPoints)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10)
-    .map(([characterId, points]) => {
-      const character = characters.find(char => char.id === parseInt(characterId))
-      return { 
-        name: character ? character.name : `Character ${characterId}`, 
-        points 
-      }
-    })
+    .map(([characterId, points]) => ({
+      name: getCharacterName(parseInt(characterId)),
+      points 
+    }))
 
   const calculateTrend = () => {
     if (top10Points.length === 0) return "0.0"

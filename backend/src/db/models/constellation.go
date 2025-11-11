@@ -7,6 +7,6 @@ type Constellation struct {
 	ConstellationID int             `gorm:"primaryKey" json:"constellation_id"`
 	Name            string          `json:"name"`
 	RegionID        int             `json:"region_id"`
-	Systems         json.RawMessage `gorm:"type:jsonb" json:"systems"`
-	Position        json.RawMessage `gorm:"type:jsonb" json:"position"`
+	Systems         json.RawMessage `gorm:"type:jsonb" json:"systems" swaggertype:"array,integer"`
+	Position        json.RawMessage `gorm:"type:jsonb" json:"position" swaggertype:"object"`
 }

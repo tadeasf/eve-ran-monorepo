@@ -53,6 +53,21 @@ func GetAllKills() ([]models.Kill, error) {
 	return kills, err
 }
 
+// GetKillCount returns the total count of kills without loading all records
+func GetKillCount() (int64, error) {
+	var count int64
+	err := db.DB.Model(&models.Kill{}).Count(&count).Error
+	return count, err
+}
+
+// GetRecentKillCount returns the count of kills from the last N days
+func GetRecentKillCount(days int) (int64, error) {
+	var count int64
+	cutoffTime := time.Now().AddDate(0, 0, -days)
+	err := db.DB.Model(&models.Kill{}).Where("killmail_time >= ?", cutoffTime).Count(&count).Error
+	return count, err
+}
+
 func GetKillsForCharacter(characterID int64, page, pageSize int) ([]models.Kill, error) {
 	var kills []models.Kill
 	offset := (page - 1) * pageSize
