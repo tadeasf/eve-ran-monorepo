@@ -146,6 +146,24 @@ func GetAllCompetitionHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, history)
 }
 
+// GetYearToDateWinners returns first place winners for each month in current year
+// @Summary Get year-to-date winners
+// @Description Get the first place winner for each month in the current year
+// @Tags competition
+// @Produce json
+// @Success 200 {array} models.CompetitionWinner
+// @Failure 500 {object} map[string]string
+// @Router /competition/ytd-winners [get]
+func GetYearToDateWinners(c *gin.Context) {
+	winners, err := queries.GetYearToDateWinners()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, winners)
+}
+
 // SaveMonthlyResults manually triggers saving the monthly competition results
 // @Summary Save monthly competition results
 // @Description Manually save competition results for a specific month (admin only)

@@ -11,7 +11,7 @@ type Region struct {
 	RegionID       int             `gorm:"primaryKey" json:"region_id"`
 	Name           string          `json:"name"`
 	Description    string          `json:"description"`
-	Constellations json.RawMessage `gorm:"type:jsonb" json:"constellations"`
+	Constellations json.RawMessage `gorm:"type:jsonb" json:"constellations" swaggertype:"array,integer"`
 }
 
 func (r *Region) Scan(value interface{}) error {

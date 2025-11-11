@@ -499,3 +499,30 @@ export async function getRecentCompetitionWinners(): Promise<CompetitionWinner[]
         throw error
     }
 }
+
+/**
+ * Get year-to-date competition winners (first place for each month in current year)
+ */
+export async function getYearToDateWinners(): Promise<CompetitionWinner[]> {
+    try {
+        const response = await fetch(
+            `${API_BASE_URL}/competition/ytd-winners`,
+            {
+                headers: {
+                    'Accept': 'application/json',
+                }
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status} ${response.statusText}`)
+        }
+
+        const data = await response.json()
+        // Ensure we always return an array
+        return Array.isArray(data) ? data : []
+    } catch (error) {
+        console.error('Error fetching year-to-date winners:', error)
+        throw error
+    }
+}

@@ -7,8 +7,8 @@ import (
 // CompetitionSettings stores the configuration for competitions
 type CompetitionSettings struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
-	Metric    string    `gorm:"type:varchar(50);not null" json:"metric"` // "isk_destroyed" or "kill_count"
-	Regions   []int     `gorm:"type:integer[];not null" json:"regions"`  // Array of region IDs, empty means all regions
+	Metric    string    `gorm:"type:varchar(50);not null" json:"metric"`         // "isk_destroyed" or "kill_count"
+	Regions   IntArray  `gorm:"type:jsonb;not null;default:'[]'" json:"regions"` // Array of region IDs, empty means all regions
 	Active    bool      `gorm:"default:true" json:"active"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -23,7 +23,7 @@ type CompetitionResult struct {
 	Metric      string    `gorm:"type:varchar(50);not null" json:"metric"` // "isk_destroyed" or "kill_count"
 	Value       float64   `gorm:"not null" json:"value"`                   // Either ISK or kill count
 	Rank        int       `gorm:"not null" json:"rank"`                    // 1 = winner, 2 = runner-up, etc.
-	Regions     []int     `gorm:"type:integer[]" json:"regions"`           // Which regions were included
+	Regions     IntArray  `gorm:"type:jsonb;default:'[]'" json:"regions"`  // Which regions were included
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

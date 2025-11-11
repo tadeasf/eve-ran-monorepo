@@ -103,13 +103,14 @@ func main() {
 	// Kill by region route (cached)
 	r.GET("/kills/region/:regionID", cacheMiddleware, routes.GetKillsByRegion)
 
-	// Competition routes
+	// Competition routes (no caching - always fetch fresh data based on current settings)
 	r.GET("/competition/settings", routes.GetCompetitionSettings)
 	r.POST("/competition/settings", routes.UpdateCompetitionSettings)
-	r.GET("/competition/current", cacheMiddleware, routes.GetCurrentCompetitionStandings)
+	r.GET("/competition/current", routes.GetCurrentCompetitionStandings)
 	r.GET("/competition/history", routes.GetAllCompetitionHistory)
 	r.GET("/competition/history/:month/:year", routes.GetCompetitionHistory)
 	r.GET("/competition/recent-winners", routes.GetRecentCompetitionWinners)
+	r.GET("/competition/ytd-winners", routes.GetYearToDateWinners)
 	r.POST("/competition/save/:month/:year", routes.SaveMonthlyResults)
 
 	// Setup Swagger

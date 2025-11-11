@@ -18,7 +18,7 @@ import { Trophy, Target, TrendingUp, Calendar } from 'lucide-react'
 import {
     getCurrentCompetitionStandings,
     getCompetitionSettings,
-    getRecentCompetitionWinners,
+    getYearToDateWinners,
     type CompetitionStanding,
     type CompetitionSettings,
     type CompetitionWinner
@@ -27,7 +27,7 @@ import {
 export default function CompetitionPage() {
     const [standings, setStandings] = useState<CompetitionStanding[]>([])
     const [settings, setSettings] = useState<CompetitionSettings | null>(null)
-    const [recentWinners, setRecentWinners] = useState<CompetitionWinner[]>([])
+    const [ytdWinners, setYtdWinners] = useState<CompetitionWinner[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
@@ -40,12 +40,12 @@ export default function CompetitionPage() {
                 const [standingsData, settingsData, winnersData] = await Promise.all([
                     getCurrentCompetitionStandings(),
                     getCompetitionSettings(),
-                    getRecentCompetitionWinners()
+                    getYearToDateWinners()
                 ])
                 
                 setStandings(standingsData)
                 setSettings(settingsData)
-                setRecentWinners(winnersData)
+                setYtdWinners(winnersData)
             } catch (err) {
                 console.error('Error loading competition data:', err)
                 setError('Failed to load competition data. Please try again later.')
@@ -178,8 +178,7 @@ export default function CompetitionPage() {
             {/* Current Standings Table */}
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-2xl flex items-center gap-2">
-                        <Trophy className="size-6" />
+                    <CardTitle className="text-2xl">
                         Current Standings
                     </CardTitle>
                     <CardDescription>
@@ -213,6 +212,7 @@ export default function CompetitionPage() {
                                                     width={32}
                                                     height={32}
                                                     className="size-8 rounded-full"
+                                                    unoptimized
                                                 />
                                                 {standing.character_name}
                                             </div>
@@ -234,58 +234,66 @@ export default function CompetitionPage() {
                 </CardContent>
             </Card>
 
-            {/* Recent Winners Section */}
-            {recentWinners.length > 0 && (
-                <>
-                    <Separator />
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-2xl flex items-center gap-2">
-                                <Trophy className="size-6 text-yellow-500" />
-                                Last Month&apos;s Champions
-                            </CardTitle>
-                            <CardDescription>
-                                {recentWinners[0] && `${getMonthName(recentWinners[0].month)} ${recentWinners[0].year} winners`}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[100px]">Rank</TableHead>
-                                        <TableHead>Character</TableHead>
-                                        <TableHead className="text-right">
-                                            {recentWinners[0] && getMetricLabel(recentWinners[0].metric)}
-                                        </TableHead>
+            {/* Year-to-Date Winners Section */}
+            <Separator />
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-2xl">
+                        {new Date().getFullYear()} Winners
+                    </CardTitle>
+                    <CardDescription>
+                        Monthly champions for the current year
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {ytdWinners.length > 0 ? (
+                        <Table>
+                            <TableCaption>
+                                First place winners for each month
+                            </TableCaption>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Month</TableHead>
+                                    <TableHead>Champion</TableHead>
+                                    <TableHead className="text-right">
+                                        {settings && getMetricLabel(settings.metric)}
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {ytdWinners.map((winner) => (
+                                    <TableRow key={`${winner.month}-${winner.year}`}>
+                                        <TableCell className="font-medium">
+                                            {getMonthName(winner.month)}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
+                                                <Image
+                                                    src={`https://images.evetech.net/characters/${winner.character_id}/portrait?size=32`}
+                                                    alt={winner.character_name}
+                                                    width={32}
+                                                    height={32}
+                                                    className="size-8 rounded-full"
+                                                    unoptimized
+                                                />
+                                                {winner.character_name}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono">
+                                            {formatValue(winner.value, winner.metric)}
+                                        </TableCell>
                                     </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {recentWinners.slice(0, 3).map((winner) => (
-                                        <TableRow key={winner.character_id}>
-                                            <TableCell>{getRankBadge(winner.rank)}</TableCell>
-                                            <TableCell className="font-medium">
-                                                <div className="flex items-center gap-2">
-                                                    <Image
-                                                        src={`https://images.evetech.net/characters/${winner.character_id}/portrait?size=32`}
-                                                        alt={winner.character_name}
-                                                        width={32}
-                                                        height={32}
-                                                        className="size-8 rounded-full"
-                                                    />
-                                                    {winner.character_name}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-right font-mono">
-                                                {formatValue(winner.value, winner.metric)}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </CardContent>
-                    </Card>
-                </>
-            )}
+                                ))}
+                            </TableBody>
+                        </Table>
+                    ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                            <p>No previous monthly winners yet.</p>
+                            <p className="text-sm mt-2">Winners will appear here after the first month is completed and results are saved.</p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     )
 }

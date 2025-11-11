@@ -1,35 +1,5 @@
 basePath: /
 definitions:
-  db.CharacterStats:
-    properties:
-      character_id:
-        type: integer
-      kill_count:
-        type: integer
-      total_isk:
-        type: number
-    type: object
-  models.Attacker:
-    properties:
-      alliance_id:
-        type: integer
-      character_id:
-        type: integer
-      corporation_id:
-        type: integer
-      damage_done:
-        type: integer
-      faction_id:
-        type: integer
-      final_blow:
-        type: boolean
-      security_status:
-        type: number
-      ship_type_id:
-        type: integer
-      weapon_type_id:
-        type: integer
-    type: object
   models.Character:
     properties:
       id:
@@ -42,6 +12,63 @@ definitions:
         type: number
       title:
         type: string
+    type: object
+  models.CharacterStats:
+    properties:
+      character_id:
+        type: integer
+      kill_count:
+        type: integer
+      total_isk:
+        type: number
+    type: object
+  models.CompetitionSettings:
+    properties:
+      active:
+        type: boolean
+      created_at:
+        type: string
+      id:
+        type: integer
+      metric:
+        description: '"isk_destroyed" or "kill_count"'
+        type: string
+      regions:
+        description: Array of region IDs, empty means all regions
+        items:
+          type: integer
+        type: array
+      updated_at:
+        type: string
+    type: object
+  models.CompetitionStanding:
+    properties:
+      character_id:
+        type: integer
+      character_name:
+        type: string
+      rank:
+        type: integer
+      value:
+        description: ISK or kill count
+        type: number
+    type: object
+  models.CompetitionWinner:
+    properties:
+      character_id:
+        type: integer
+      character_name:
+        type: string
+      metric:
+        type: string
+      month:
+        type: integer
+      rank:
+        type: integer
+      value:
+        type: number
+      year:
+        type: integer
     type: object
   models.ErrorResponse:
     properties:
@@ -65,38 +92,22 @@ definitions:
     properties:
       attackers:
         items:
-          $ref: '#/definitions/models.Attacker'
+          type: integer
         type: array
-      awox:
-        type: boolean
-      character_id:
+      characterID:
         type: integer
-      destroyed_value:
-        type: number
-      dropped_value:
-        type: number
-      fitted_value:
-        type: number
-      hash:
+      id:
+        type: integer
+      killmailID:
+        type: integer
+      killmailTime:
         type: string
-      killmail_id:
+      solarSystemID:
         type: integer
-      killmail_time:
-        type: string
-      locationID:
-        type: integer
-      npc:
-        type: boolean
-      points:
-        type: integer
-      solar_system_id:
-        type: integer
-      solo:
-        type: boolean
-      total_value:
-        type: number
       victim:
         $ref: '#/definitions/models.Victim'
+      zkillData:
+        $ref: '#/definitions/models.Zkill'
     type: object
   models.PaginatedResponse:
     properties:
@@ -134,15 +145,16 @@ definitions:
     type: object
   models.Victim:
     properties:
-      alliance_id:
+      allianceID:
+        format: int64
         type: integer
-      character_id:
+      characterID:
+        format: int64
         type: integer
-      corporation_id:
+      corporationID:
+        format: int64
         type: integer
-      damage_taken:
-        type: integer
-      faction_id:
+      damageTaken:
         type: integer
       items:
         items:
@@ -150,16 +162,75 @@ definitions:
         type: array
       position:
         $ref: '#/definitions/models.Position'
-      ship_type_id:
+      shipTypeID:
         type: integer
     type: object
-host: localhost:8080
+  models.Zkill:
+    properties:
+      awox:
+        type: boolean
+      characterID:
+        format: int64
+        type: integer
+      destroyedValue:
+        format: float64
+        type: number
+      droppedValue:
+        format: float64
+        type: number
+      fittedValue:
+        format: float64
+        type: number
+      hash:
+        type: string
+      id:
+        type: integer
+      killmailID:
+        type: integer
+      labels:
+        items:
+          type: string
+        type: array
+      locationID:
+        format: int64
+        type: integer
+      npc:
+        type: boolean
+      points:
+        type: integer
+      solo:
+        type: boolean
+      totalValue:
+        format: float64
+        type: number
+    type: object
+host: api.tundragon.space
 info:
   contact: {}
   description: This is the API for EVE Ran application.
   title: EVE Ran API
   version: "1.0"
 paths:
+  /admin/stats:
+    get:
+      consumes:
+      - application/json
+      description: Get various statistics for the admin dashboard
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get dashboard statistics
+      tags:
+      - admin
   /characters:
     get:
       consumes:
@@ -184,10 +255,7 @@ paths:
     post:
       consumes:
       - application/json
-      - application/json
-      description: |-
-        Add a new character ID to the database and fetch all kills
-        Add a new character ID to the database and fetch all kills
+      description: Add a new character ID to the database and fetch all kills
       parameters:
       - description: Character ID
         in: body
@@ -195,14 +263,7 @@ paths:
         required: true
         schema:
           $ref: '#/definitions/models.Character'
-      - description: Character ID
-        in: body
-        name: character
-        required: true
-        schema:
-          $ref: '#/definitions/models.Character'
       produces:
-      - application/json
       - application/json
       responses:
         "201":
@@ -219,7 +280,6 @@ paths:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Add a new character ID
       tags:
-      - characters
       - characters
   /characters/{id}:
     delete:
@@ -241,46 +301,15 @@ paths:
           description: Bad Request
           schema:
             $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Remove a character
-      tags:
-      - characters
-  /characters/{id}/kills:
-    get:
-      consumes:
-      - application/json
-      description: Fetch and store kills for a character from zKillboard
-      parameters:
-      - description: Character ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Page number
-        in: query
-        name: page
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/models.Kill'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get character kills
       tags:
       - characters
   /characters/{id}/kills/db:
@@ -320,6 +349,70 @@ paths:
       summary: Get character kills from database
       tags:
       - characters
+  /characters/batch:
+    post:
+      consumes:
+      - application/json
+      description: Add multiple characters by their IDs
+      parameters:
+      - description: Array of character IDs
+        in: body
+        name: characters
+        required: true
+        schema:
+          items:
+            type: integer
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Batch add characters
+      tags:
+      - characters
+  /characters/search:
+    get:
+      consumes:
+      - application/json
+      description: Search for EVE Online characters by name using ESI API
+      parameters:
+      - description: Character name to search
+        in: query
+        name: search
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Character'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Search characters by name
+      tags:
+      - characters
   /characters/stats:
     get:
       consumes:
@@ -349,7 +442,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/db.CharacterStats'
+              $ref: '#/definitions/models.CharacterStats'
             type: array
         "400":
           description: Bad Request
@@ -362,11 +455,239 @@ paths:
       summary: Get all character stats
       tags:
       - characters
+  /competition/current:
+    get:
+      description: Get the current month's competition standings based on active settings
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.CompetitionStanding'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get current competition standings
+      tags:
+      - competition
+  /competition/history:
+    get:
+      description: Get all historical competition results across all months
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.CompetitionWinner'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get all competition history
+      tags:
+      - competition
+  /competition/history/{month}/{year}:
+    get:
+      description: Get historical competition results for a specific month and year
+      parameters:
+      - description: Month (1-12)
+        in: path
+        name: month
+        required: true
+        type: integer
+      - description: Year
+        in: path
+        name: year
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.CompetitionWinner'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get competition history
+      tags:
+      - competition
+  /competition/recent-winners:
+    get:
+      description: Get the winners from the most recent completed competition (last
+        month)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.CompetitionWinner'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get recent competition winners
+      tags:
+      - competition
+  /competition/save/{month}/{year}:
+    post:
+      description: Manually save competition results for a specific month (admin only)
+      parameters:
+      - description: Month (1-12)
+        in: path
+        name: month
+        required: true
+        type: integer
+      - description: Year
+        in: path
+        name: year
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Save monthly competition results
+      tags:
+      - competition
+  /competition/settings:
+    get:
+      description: Get the currently active competition settings (returns defaults
+        if none exist)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CompetitionSettings'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get competition settings
+      tags:
+      - competition
+    post:
+      consumes:
+      - application/json
+      description: Create or update the competition settings (admin only)
+      parameters:
+      - description: Competition settings
+        in: body
+        name: settings
+        required: true
+        schema:
+          $ref: '#/definitions/models.CompetitionSettings'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.CompetitionSettings'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update competition settings
+      tags:
+      - competition
+  /competition/ytd-winners:
+    get:
+      description: Get the first place winner for each month in the current year
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.CompetitionWinner'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get year-to-date winners
+      tags:
+      - competition
   /kills:
     get:
       consumes:
       - application/json
-      description: Fetch all kills from the database
+      description: Fetch all kills from the database, optionally filtered by character_id
+        and date range
+      parameters:
+      - description: Filter by character ID
+        in: query
+        name: character_id
+        type: integer
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
       produces:
       - application/json
       responses:
@@ -387,20 +708,12 @@ paths:
     get:
       consumes:
       - application/json
-      description: Fetch kills for a region from the database
+      description: Fetch all kills for a region from the database
       parameters:
       - description: Region ID
         in: path
         name: regionID
         required: true
-        type: integer
-      - description: Page number
-        in: query
-        name: page
-        type: integer
-      - description: Page size
-        in: query
-        name: pageSize
         type: integer
       - description: Start date (YYYY-MM-DD)
         in: query
@@ -416,7 +729,9 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.PaginatedResponse'
+            items:
+              $ref: '#/definitions/models.Kill'
+            type: array
         "400":
           description: Bad Request
           schema:
