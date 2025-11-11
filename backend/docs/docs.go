@@ -15,6 +15,36 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/admin/stats": {
+            "get": {
+                "description": "Get various statistics for the admin dashboard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get dashboard statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/characters": {
             "get": {
                 "description": "Fetch all characters from the database",
@@ -47,30 +77,18 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Add a new character ID to the database and fetch all kills\nAdd a new character ID to the database and fetch all kills",
+                "description": "Add a new character ID to the database and fetch all kills",
                 "consumes": [
-                    "application/json",
                     "application/json"
                 ],
                 "produces": [
-                    "application/json",
                     "application/json"
                 ],
                 "tags": [
-                    "characters",
                     "characters"
                 ],
                 "summary": "Add a new character ID",
                 "parameters": [
-                    {
-                        "description": "Character ID",
-                        "name": "character",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.Character"
-                        }
-                    },
                     {
                         "description": "Character ID",
                         "name": "character",
@@ -86,6 +104,103 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/models.Character"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/characters/batch": {
+            "post": {
+                "description": "Add multiple characters by their IDs",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "characters"
+                ],
+                "summary": "Batch add characters",
+                "parameters": [
+                    {
+                        "description": "Array of character IDs",
+                        "name": "characters",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "integer"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/characters/search": {
+            "get": {
+                "description": "Search for EVE Online characters by name using ESI API",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "characters"
+                ],
+                "summary": "Search characters by name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Character name to search",
+                        "name": "search",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Character"
+                            }
                         }
                     },
                     "400": {
@@ -146,7 +261,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/db.CharacterStats"
+                                "$ref": "#/definitions/models.CharacterStats"
                             }
                         }
                     },
@@ -197,55 +312,8 @@ const docTemplate = `{
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
                     },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/characters/{id}/kills": {
-            "get": {
-                "description": "Fetch and store kills for a character from zKillboard",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "characters"
-                ],
-                "summary": "Get character kills",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Character ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/models.Kill"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -315,9 +383,330 @@ const docTemplate = `{
                 }
             }
         },
+        "/competition/current": {
+            "get": {
+                "description": "Get the current month's competition standings based on active settings",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "competition"
+                ],
+                "summary": "Get current competition standings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.CompetitionStanding"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/competition/history": {
+            "get": {
+                "description": "Get all historical competition results across all months",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "competition"
+                ],
+                "summary": "Get all competition history",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.CompetitionWinner"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/competition/history/{month}/{year}": {
+            "get": {
+                "description": "Get historical competition results for a specific month and year",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "competition"
+                ],
+                "summary": "Get competition history",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Month (1-12)",
+                        "name": "month",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Year",
+                        "name": "year",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.CompetitionWinner"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/competition/recent-winners": {
+            "get": {
+                "description": "Get the winners from the most recent completed competition (last month)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "competition"
+                ],
+                "summary": "Get recent competition winners",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.CompetitionWinner"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/competition/save/{month}/{year}": {
+            "post": {
+                "description": "Manually save competition results for a specific month (admin only)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "competition"
+                ],
+                "summary": "Save monthly competition results",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Month (1-12)",
+                        "name": "month",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Year",
+                        "name": "year",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/competition/settings": {
+            "get": {
+                "description": "Get the currently active competition settings (returns defaults if none exist)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "competition"
+                ],
+                "summary": "Get competition settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.CompetitionSettings"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create or update the competition settings (admin only)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "competition"
+                ],
+                "summary": "Update competition settings",
+                "parameters": [
+                    {
+                        "description": "Competition settings",
+                        "name": "settings",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.CompetitionSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.CompetitionSettings"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/competition/ytd-winners": {
+            "get": {
+                "description": "Get the first place winner for each month in the current year",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "competition"
+                ],
+                "summary": "Get year-to-date winners",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.CompetitionWinner"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/kills": {
             "get": {
-                "description": "Fetch all kills from the database",
+                "description": "Fetch all kills from the database, optionally filtered by character_id and date range",
                 "consumes": [
                     "application/json"
                 ],
@@ -328,6 +717,26 @@ const docTemplate = `{
                     "kills"
                 ],
                 "summary": "Get all kills",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Filter by character ID",
+                        "name": "character_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start date (YYYY-MM-DD)",
+                        "name": "start_date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End date (YYYY-MM-DD)",
+                        "name": "end_date",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -349,7 +758,7 @@ const docTemplate = `{
         },
         "/kills/region/{regionID}": {
             "get": {
-                "description": "Fetch kills for a region from the database",
+                "description": "Fetch all kills for a region from the database",
                 "consumes": [
                     "application/json"
                 ],
@@ -369,18 +778,6 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "type": "integer",
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page size",
-                        "name": "pageSize",
-                        "in": "query"
-                    },
-                    {
                         "type": "string",
                         "description": "Start date (YYYY-MM-DD)",
                         "name": "startDate",
@@ -397,7 +794,10 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.PaginatedResponse"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.Kill"
+                            }
                         }
                     },
                     "400": {
@@ -449,52 +849,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "db.CharacterStats": {
-            "type": "object",
-            "properties": {
-                "character_id": {
-                    "type": "integer"
-                },
-                "kill_count": {
-                    "type": "integer"
-                },
-                "total_isk": {
-                    "type": "number"
-                }
-            }
-        },
-        "models.Attacker": {
-            "type": "object",
-            "properties": {
-                "alliance_id": {
-                    "type": "integer"
-                },
-                "character_id": {
-                    "type": "integer"
-                },
-                "corporation_id": {
-                    "type": "integer"
-                },
-                "damage_done": {
-                    "type": "integer"
-                },
-                "faction_id": {
-                    "type": "integer"
-                },
-                "final_blow": {
-                    "type": "boolean"
-                },
-                "security_status": {
-                    "type": "number"
-                },
-                "ship_type_id": {
-                    "type": "integer"
-                },
-                "weapon_type_id": {
-                    "type": "integer"
-                }
-            }
-        },
         "models.Character": {
             "type": "object",
             "properties": {
@@ -512,6 +866,92 @@ const docTemplate = `{
                 },
                 "title": {
                     "type": "string"
+                }
+            }
+        },
+        "models.CharacterStats": {
+            "type": "object",
+            "properties": {
+                "character_id": {
+                    "type": "integer"
+                },
+                "kill_count": {
+                    "type": "integer"
+                },
+                "total_isk": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.CompetitionSettings": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "metric": {
+                    "description": "\"isk_destroyed\" or \"kill_count\"",
+                    "type": "string"
+                },
+                "regions": {
+                    "description": "Array of region IDs, empty means all regions",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.CompetitionStanding": {
+            "type": "object",
+            "properties": {
+                "character_id": {
+                    "type": "integer"
+                },
+                "character_name": {
+                    "type": "string"
+                },
+                "rank": {
+                    "type": "integer"
+                },
+                "value": {
+                    "description": "ISK or kill count",
+                    "type": "number"
+                }
+            }
+        },
+        "models.CompetitionWinner": {
+            "type": "object",
+            "properties": {
+                "character_id": {
+                    "type": "integer"
+                },
+                "character_name": {
+                    "type": "string"
+                },
+                "metric": {
+                    "type": "string"
+                },
+                "month": {
+                    "type": "integer"
+                },
+                "rank": {
+                    "type": "integer"
+                },
+                "value": {
+                    "type": "number"
+                },
+                "year": {
+                    "type": "integer"
                 }
             }
         },
@@ -549,53 +989,29 @@ const docTemplate = `{
                 "attackers": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/models.Attacker"
+                        "type": "integer"
                     }
                 },
-                "awox": {
-                    "type": "boolean"
-                },
-                "character_id": {
+                "characterID": {
                     "type": "integer"
                 },
-                "destroyed_value": {
-                    "type": "number"
+                "id": {
+                    "type": "integer"
                 },
-                "dropped_value": {
-                    "type": "number"
+                "killmailID": {
+                    "type": "integer"
                 },
-                "fitted_value": {
-                    "type": "number"
-                },
-                "hash": {
+                "killmailTime": {
                     "type": "string"
                 },
-                "killmail_id": {
+                "solarSystemID": {
                     "type": "integer"
-                },
-                "killmail_time": {
-                    "type": "string"
-                },
-                "locationID": {
-                    "type": "integer"
-                },
-                "npc": {
-                    "type": "boolean"
-                },
-                "points": {
-                    "type": "integer"
-                },
-                "solar_system_id": {
-                    "type": "integer"
-                },
-                "solo": {
-                    "type": "boolean"
-                },
-                "total_value": {
-                    "type": "number"
                 },
                 "victim": {
                     "$ref": "#/definitions/models.Victim"
+                },
+                "zkillData": {
+                    "$ref": "#/definitions/models.Zkill"
                 }
             }
         },
@@ -654,19 +1070,19 @@ const docTemplate = `{
         "models.Victim": {
             "type": "object",
             "properties": {
-                "alliance_id": {
-                    "type": "integer"
+                "allianceID": {
+                    "type": "integer",
+                    "format": "int64"
                 },
-                "character_id": {
-                    "type": "integer"
+                "characterID": {
+                    "type": "integer",
+                    "format": "int64"
                 },
-                "corporation_id": {
-                    "type": "integer"
+                "corporationID": {
+                    "type": "integer",
+                    "format": "int64"
                 },
-                "damage_taken": {
-                    "type": "integer"
-                },
-                "faction_id": {
+                "damageTaken": {
                     "type": "integer"
                 },
                 "items": {
@@ -678,8 +1094,64 @@ const docTemplate = `{
                 "position": {
                     "$ref": "#/definitions/models.Position"
                 },
-                "ship_type_id": {
+                "shipTypeID": {
                     "type": "integer"
+                }
+            }
+        },
+        "models.Zkill": {
+            "type": "object",
+            "properties": {
+                "awox": {
+                    "type": "boolean"
+                },
+                "characterID": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "destroyedValue": {
+                    "type": "number",
+                    "format": "float64"
+                },
+                "droppedValue": {
+                    "type": "number",
+                    "format": "float64"
+                },
+                "fittedValue": {
+                    "type": "number",
+                    "format": "float64"
+                },
+                "hash": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "killmailID": {
+                    "type": "integer"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "locationID": {
+                    "type": "integer",
+                    "format": "int64"
+                },
+                "npc": {
+                    "type": "boolean"
+                },
+                "points": {
+                    "type": "integer"
+                },
+                "solo": {
+                    "type": "boolean"
+                },
+                "totalValue": {
+                    "type": "number",
+                    "format": "float64"
                 }
             }
         }

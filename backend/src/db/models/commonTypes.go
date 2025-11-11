@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,7 +9,21 @@ import (
 
 type IntArray []int
 
+// Value implements the driver.Valuer interface for database serialization
+func (a IntArray) Value() (driver.Value, error) {
+	if a == nil {
+		return json.Marshal([]int{})
+	}
+	return json.Marshal(a)
+}
+
+// Scan implements the sql.Scanner interface for database deserialization
 func (a *IntArray) Scan(value interface{}) error {
+	if value == nil {
+		*a = IntArray([]int{})
+		return nil
+	}
+
 	bytes, ok := value.([]byte)
 	if !ok {
 		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))

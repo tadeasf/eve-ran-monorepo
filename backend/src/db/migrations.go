@@ -56,3 +56,67 @@ func RunIndexMigrations() error {
 	log.Println("Index migrations completed successfully")
 	return nil
 }
+
+// RunDataMigrations handles one-time data migrations
+func RunDataMigrations() error {
+	log.Println("Running data migrations...")
+
+	// List of tables that need migration from integer[] to jsonb
+	tablesToMigrate := []struct {
+		tableName  string
+		columnName string
+	}{
+		{"competition_settings", "regions"},
+		{"competition_results", "regions"},
+	}
+
+	for _, table := range tablesToMigrate {
+		log.Printf("Checking %s.%s column type...", table.tableName, table.columnName)
+
+		// Check if the table exists first
+		var tableExists bool
+		err := DB.Raw(`
+			SELECT EXISTS (
+				SELECT FROM information_schema.tables 
+				WHERE table_name = ?
+			)
+		`, table.tableName).Scan(&tableExists).Error
+
+		if err != nil || !tableExists {
+			log.Printf("Table %s doesn't exist yet, will be created by AutoMigrate", table.tableName)
+			continue
+		}
+
+		// Check if the column exists with integer[] type
+		var columnType string
+		err = DB.Raw(`
+			SELECT data_type 
+			FROM information_schema.columns 
+			WHERE table_name = ? 
+			AND column_name = ?
+		`, table.tableName, table.columnName).Scan(&columnType).Error
+
+		if err == nil && columnType == "ARRAY" {
+			log.Printf("Found integer[] type for %s.%s, converting to jsonb...", table.tableName, table.columnName)
+
+			// Check if there's any data
+			var hasData bool
+			DB.Raw(fmt.Sprintf("SELECT EXISTS(SELECT 1 FROM %s LIMIT 1)", table.tableName)).Scan(&hasData)
+
+			if hasData {
+				log.Printf("Warning: Found existing data in %s, it will be reset", table.tableName)
+			}
+
+			// Drop the table - CASCADE will handle any foreign keys
+			err := DB.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE", table.tableName)).Error
+			if err != nil {
+				return fmt.Errorf("failed to drop %s table: %v", table.tableName, err)
+			}
+
+			log.Printf("Successfully dropped %s table, AutoMigrate will recreate it", table.tableName)
+		}
+	}
+
+	log.Println("Data migrations completed successfully")
+	return nil
+}

@@ -2,7 +2,28 @@
 
 ![EVE Ran Services Design](https://github.com/tadeasf/eve-ran-monorepo/raw/main/docs/ran-services-design.png)
 
-**EVE Ran** is a web application for tracking and analyzing character kills in **EVE Online**.
+**EVE Ran** is a web application for tracking and analyzing character kills in **EVE Online**. It provides PVP statistics and performance metrics for members, squads, and sigs inside [Goonswarm Federation](https://goonfleet.com/).
+
+## Table of Contents
+
+- [Features](#features)
+- [Demo](#demo)
+- [Project Overview](#project-overview)
+- [Local Development](#local-development)
+- [Deployment](#deployment)
+- [Additional Documentation](#additional-documentation)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Features
+
+- **Character Kill Tracking**: Monitor and analyze killmail data for tracked characters
+- **PVP Statistics**: View aggregate statistics, ISK destroyed, and point values
+- **Competition Leaderboards**: Year-to-date and monthly rankings by ISK and points
+- **Trend Analysis**: Track performance trends over time
+- **Region & System Filtering**: Filter kills by EVE Online regions and date ranges
+- **Admin Dashboard**: Manage characters, configure competition settings, and view analytics
+- **Real-time Data**: Periodic updates from [zKillboard](https://zkillboard.com/) and [EVE ESI](https://esi.evetech.net/)
 
 ## Demo
 
@@ -10,87 +31,123 @@
 
 ![Frontend Demo 2](https://github.com/tadeasf/eve-ran-monorepo/raw/main/docs/ran-frontend-2.png)
 
-## Deployment
+## Project Overview
 
-To deploy **EVE Ran** using Docker Compose:
+### Architecture
+
+**Stack:**
+- Frontend: Next.js 14, React 18, TypeScript, Tailwind CSS, shadcn/ui
+- Backend: Go 1.23, Gin framework, GORM
+- Database: PostgreSQL
+- Reverse Proxy: Caddy
+
+### Backend Core Components
+
+**Services (`backend/src/services/`):**
+- `esi.go`: EVE Online ESI API integration with rate limiting
+- `esiErrorManager.go`: Global rate limit manager for ESI requests
+
+**Database Models (`backend/src/db/models/`):**
+- Character, Kill, Region, System, Constellation, Item models
+- Competition settings and tracking
+
+**Jobs (`backend/src/jobs/`):**
+- `killCron.go`: Periodic killmail fetching from zKillboard
+- `killEnhance.go`: Enrichment with ESI data
+- `typesFetcher.go`: Item type metadata updates
+
+**Routes (`backend/src/routes/`):**
+- RESTful API endpoints for characters, kills, regions, systems, and competition data
+
+### Frontend Core Components
+
+**Pages (`frontend/src/app/`):**
+- `/`: Main dashboard with kill statistics and charts
+- `/competition`: Competition leaderboards (YTD and monthly)
+- `/admin`: Admin panel for character management and settings
+
+**Key Components (`frontend/src/app/components/`):**
+- `CharacterTable.tsx`: Character statistics display
+- `FilterControls.tsx`: Region and date filtering
+- `TotalKillsChart.tsx` / `TotalIskChart.tsx`: Trend visualization
+- `AdminDashboard.tsx`: Admin interface with sidebar navigation
+- `AdminCompetitionSettings.tsx`: Competition configuration
+
+**API Client (`frontend/src/app/lib/eveApi.ts`):**
+- Centralized API communication with backend
+- React Query integration for caching
+
+## Local Development
+
+### Prerequisites
+
+- Go 1.23+
+- Node.js 18+
+- PostgreSQL 14+
+- Docker & Docker Compose (optional)
+
+### Setup
 
 1. **Clone the repository:**
-
    ```bash
    git clone https://github.com/tadeasf/eve-ran-monorepo.git
    cd eve-ran-monorepo
    ```
 
-2. Create a `.env` file in the root directory with the necessary environment variables (refer to the `.env.example` files in the frontend and backend directories).
-
-3. **Build and start the containers:**
-
+2. **Backend setup:**
    ```bash
-   docker-compose up -d
+   cd backend
+   cp .env.example .env
+   # Edit .env with your PostgreSQL credentials
+   go mod download
+   go run src/main.go
    ```
 
-4. **Access the application at `http://localhost:80` (or the configured domain).**
+3. **Frontend setup:**
+   ```bash
+   cd frontend
+   cp .env.example .env.local
+   # Edit .env.local with your backend API URL
+   npm install
+   npm run dev
+   ```
 
-## Architecture
+4. **Database setup:**
+   - Create a PostgreSQL database
+   - Migrations run automatically on backend startup
 
-EVE Ran consists of the following components:
+### Development URLs
 
-* **Frontend:** next.js & tailwind & shadcn/ui
-* **Backend:** go & gin
-* **Database:** postgreSQL
-* **Web server & reverse proxy:** caddy
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:8080`
+- API Documentation: `http://localhost:8080/swagger/index.html`
 
-The services work together as follows:
+## Deployment
 
-- The frontend, built with Next.js and Tailwind CSS, is hosted on Vercel and provides a responsive user interface.
-- Caddy acts as a reverse proxy, routing requests to the appropriate services.
-- The Golang Gin backend handles API requests, interacts with the database, and communicates with external APIs ([zKillboard](https://zkillboard.com/) and [EVE Online ESI](https://esi.evetech.net/)).
-- PostgreSQL stores all application data, including character information and killmail data.
-- Cron jobs in the backend periodically fetch and enrich killmail data.
+For production deployment instructions, see **[Deployment Guide](./docs/DEPLOYMENT.md)**.
 
-## Backend
+**Quick Start with Docker Compose:**
+```bash
+docker-compose up -d
+```
 
-The backend is built with Golang using the Gin framework. It provides various endpoints for fetching and managing data related to characters, regions, systems, constellations, and items. The main functionality includes:
+This starts all services:
+- Frontend on port 12921
+- Backend API on port 12922
+- PostgreSQL on port 12920
 
-- **Character management** (adding, removing, and fetching character data)
-- Killmail **retrieval** and **processing**
-- Region and system data management
-- **Cron jobs** for periodic data **updates** and **enhancement** with data from [ESI API](https://esi.evetech.net/)
+Configure your reverse proxy (Caddy/Nginx) to route traffic to these ports.
 
-Key features of the backend include:
-- RESTful API endpoints for data management and retrieval
-- Integration with [zKillboard](https://zkillboard.com/) and [EVE Online ESI API](https://esi.evetech.net/)
-- Cron jobs for periodic data updates
-- Database interactions using **GORM**
+## Additional Documentation
 
-## Frontend
-
-The frontend is a Next.js application with Tailwind CSS for styling. It provides a user-friendly interface for:
-
-- **Visualize PVP stats and performance for for members squads and sigs inside [Goonswarm Federation](https://goonfleet.com/)**
-    - opportunity to get bragging rights
-- Filtering and displaying killmail data
-    - Aggregate
-    - View individual kills and their ISK/point value
-    - Calculates trends for both ISK/points
-- Managing tracked characters
-
-Key components of the frontend include:
-
-1. **Dashboard**: The main page displaying character statistics, kill charts, and filtering options.
-2. **Character Table**: A component for displaying detailed character information and kill statistics.
-3. **Filter Controls**: Allow users to select regions, date ranges, and apply filters to the displayed data.
-4. **Charts**: Various charts displaying kill statistics over time and ISK destroyed.
-
-The frontend communicates with the backend API to fetch and display data, and uses React Query for efficient data management and caching. For a detailed look at the Dashboard component, which serves as the main interface for the application, refer to the frontend directory.
+- **[ESI Rate Limiting](./docs/ESI_RATE_LIMITING_UPDATE.md)**: Details on EVE Online ESI API rate limiting implementation
+- **[Deployment Guide](./docs/DEPLOYMENT.md)**: Production deployment instructions and configuration
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a **Pull Request**
+Contributions are welcome! Please submit a **Pull Request** with your changes.
 
-## Feature Requests
-
-Feature requests are encouraged as well. Feel free to add a new **Issue** with description of your desired new feature.
+For feature requests, open an **Issue** with a description of the desired functionality.
 
 ## License
 

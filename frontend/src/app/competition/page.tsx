@@ -34,7 +34,7 @@ import {
     type CompetitionWinner
 } from '@/app/lib/eveApi'
 
-export default function Home() {
+export default function CompetitionPage() {
     const [standings, setStandings] = useState<CompetitionStanding[]>([])
     const [settings, setSettings] = useState<CompetitionSettings | null>(null)
     const [ytdWinners, setYtdWinners] = useState<CompetitionWinner[]>([])
@@ -71,8 +71,10 @@ export default function Home() {
 
     const formatValue = (value: number, metric: string) => {
         if (metric === 'isk_destroyed') {
+            // Format ISK in billions with 2 decimal places
             return `${(value / 1_000_000_000).toFixed(2)}B ISK`
         }
+        // Format kill count as integer
         return value.toLocaleString()
     }
 
