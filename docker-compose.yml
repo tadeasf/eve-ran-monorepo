@@ -43,6 +43,7 @@ services:
     depends_on:
       - api
     environment:
+      - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=https://api.tundragon.space
     env_file:
       - ./frontend/.env.local

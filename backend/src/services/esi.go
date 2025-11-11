@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -23,15 +24,65 @@ var (
 			IdleConnTimeout:     90 * time.Second,
 		},
 	}
+	esiManager = GetGlobalESIManager()
 )
+
+// makeESIRequest is a helper function that makes ESI requests with proper rate limiting and header handling
+func makeESIRequest(url string, method string) (*http.Response, error) {
+	// Check if we can make a request
+	if !esiManager.CanMakeRequest() {
+		log.Printf("ESI rate limit reached, waiting for reset...")
+		esiManager.WaitForReset()
+	}
+
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
+
+	// Set required headers as per ESI guidelines
+	req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran - Contact: github.com/tadeasf")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := esiClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error making request: %v", err)
+	}
+
+	// Update rate limiting information from response headers
+	esiManager.UpdateLimitsFromHeaders(resp.Header)
+
+	// Log rate limit status only if it's low (for debugging)
+	remaining, resetTime := esiManager.GetStatus()
+	if remaining < 20 {
+		log.Printf("ESI Rate Limit LOW - Remaining: %d, Reset: %s", remaining, resetTime.Format(time.RFC3339))
+	}
+
+	// Handle error responses
+	if resp.StatusCode >= 400 {
+		// Decrement error count on client or server errors
+		esiManager.DecrementErrorCount()
+
+		if resp.StatusCode == 420 || resp.StatusCode == 520 {
+			// These are rate limit errors
+			return resp, fmt.Errorf("ESI rate limit exceeded: %d", resp.StatusCode)
+		}
+	}
+
+	return resp, nil
+}
 
 func FetchRegionIDs() ([]int, error) {
 	url := fmt.Sprintf("%s/universe/regions/?datasource=tranquility", esiBaseURL)
-	resp, err := http.Get(url)
+	resp, err := makeESIRequest(url, "GET")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned status %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -45,11 +96,15 @@ func FetchRegionIDs() ([]int, error) {
 
 func FetchRegionInfo(regionID int) (*models.Region, error) {
 	url := fmt.Sprintf("%s/universe/regions/%d/?datasource=tranquility&language=en", esiBaseURL, regionID)
-	resp, err := http.Get(url)
+	resp, err := makeESIRequest(url, "GET")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned status %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -72,11 +127,15 @@ func FetchRegionInfo(regionID int) (*models.Region, error) {
 
 func FetchSystemIDs() ([]int, error) {
 	url := fmt.Sprintf("%s/universe/systems/?datasource=tranquility", esiBaseURL)
-	resp, err := http.Get(url)
+	resp, err := makeESIRequest(url, "GET")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned status %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -90,11 +149,15 @@ func FetchSystemIDs() ([]int, error) {
 
 func FetchSystemInfo(systemID int) (*models.System, error) {
 	url := fmt.Sprintf("%s/universe/systems/%d/?datasource=tranquility&language=en", esiBaseURL, systemID)
-	resp, err := http.Get(url)
+	resp, err := makeESIRequest(url, "GET")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned status %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -108,11 +171,15 @@ func FetchSystemInfo(systemID int) (*models.System, error) {
 
 func FetchConstellationIDs() ([]int, error) {
 	url := fmt.Sprintf("%s/universe/constellations/?datasource=tranquility", esiBaseURL)
-	resp, err := http.Get(url)
+	resp, err := makeESIRequest(url, "GET")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned status %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -126,11 +193,15 @@ func FetchConstellationIDs() ([]int, error) {
 
 func FetchConstellationInfo(constellationID int) (*models.Constellation, error) {
 	url := fmt.Sprintf("%s/universe/constellations/%d/?datasource=tranquility&language=en", esiBaseURL, constellationID)
-	resp, err := http.Get(url)
+	resp, err := makeESIRequest(url, "GET")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned status %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -147,11 +218,15 @@ func FetchItemIDs() ([]int, error) {
 	page := 1
 	for {
 		url := fmt.Sprintf("%s/universe/types/?datasource=tranquility&page=%d", esiBaseURL, page)
-		resp, err := http.Get(url)
+		resp, err := makeESIRequest(url, "GET")
 		if err != nil {
 			return nil, err
 		}
 		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("ESI returned status %d", resp.StatusCode)
+		}
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
@@ -177,11 +252,15 @@ func FetchItemIDs() ([]int, error) {
 
 func FetchItemInfo(itemID int) (*models.ESIItem, error) {
 	url := fmt.Sprintf("%s/universe/types/%d/?datasource=tranquility&language=en", esiBaseURL, itemID)
-	resp, err := http.Get(url)
+	resp, err := makeESIRequest(url, "GET")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned status %d", resp.StatusCode)
+	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -383,7 +462,8 @@ func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
-	req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran")
+	req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran - Contact: github.com/tadeasf")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := esiClient.Do(req)
 	if err != nil {
@@ -393,6 +473,9 @@ func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
 		return nil, fmt.Errorf("error making request: %v", err)
 	}
 	defer resp.Body.Close()
+
+	// Update rate limiting information from response headers
+	esiManager.UpdateLimitsFromHeaders(resp.Header)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -443,14 +526,14 @@ func IsESIErrorLimit(err error) bool {
 
 func FetchConstellation(constellationID int) (*models.Constellation, error) {
 	url := fmt.Sprintf("%s/universe/constellations/%d/?datasource=tranquility&language=en", esiBaseURL, constellationID)
-	resp, err := esiClient.Get(url)
+	resp, err := makeESIRequest(url, "GET")
 	if err != nil {
 		return nil, fmt.Errorf("error fetching constellation: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ESI returned non-OK status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("ESI returned status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -471,28 +554,32 @@ func FetchConstellation(constellationID int) (*models.Constellation, error) {
 func SearchCharactersByName(searchTerm string) ([]int64, error) {
 	// Use the /universe/ids/ endpoint which resolves names to IDs
 	url := fmt.Sprintf("%s/universe/ids/?datasource=tranquility", esiBaseURL)
-	
+
 	// Create the request body with the search term
 	requestBody := []string{searchTerm}
 	jsonBody, err := json.Marshal(requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling request body: %v", err)
 	}
-	
+
 	req, err := http.NewRequest("POST", url, strings.NewReader(string(jsonBody)))
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
-	
+
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran")
-	
+	req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran - Contact: github.com/tadeasf")
+	req.Header.Set("Accept", "application/json")
+
 	resp, err := esiClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error searching characters: %v", err)
 	}
 	defer resp.Body.Close()
+
+	// Update rate limiting information from response headers
+	esiManager.UpdateLimitsFromHeaders(resp.Header)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -500,7 +587,7 @@ func SearchCharactersByName(searchTerm string) ([]int64, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ESI returned non-OK status: %d, body: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("ESI returned status %d, body: %s", resp.StatusCode, string(body))
 	}
 
 	var searchResult struct {
@@ -527,15 +614,15 @@ func SearchCharactersByName(searchTerm string) ([]int64, error) {
 // FetchCharacterInfo fetches character information by ID
 func FetchCharacterInfo(characterID int64) (*models.Character, error) {
 	url := fmt.Sprintf("%s/characters/%d/?datasource=tranquility", esiBaseURL, characterID)
-	
-	resp, err := esiClient.Get(url)
+
+	resp, err := makeESIRequest(url, "GET")
 	if err != nil {
 		return nil, fmt.Errorf("error fetching character info: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ESI returned non-OK status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("ESI returned status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
