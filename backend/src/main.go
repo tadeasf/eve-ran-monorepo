@@ -21,6 +21,10 @@ import (
 // @host api.tundragon.space
 // @BasePath /
 // @schemes http https
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name X-API-Key
+// @description API key for authentication. Add your API key in the X-API-Key header.
 
 func main() {
 	utils.InitLogger()
@@ -56,64 +60,112 @@ func main() {
 
 	r := gin.Default()
 
+	// CORS middleware - configure allowed origins
+	r.Use(func(c *gin.Context) {
+		allowedOrigins := []string{
+			"https://tundragon.space",
+			"https://api.tundragon.space",
+			"http://localhost:12921",
+			"http://localhost:3000",
+		}
+
+		origin := c.Request.Header.Get("Origin")
+		for _, allowedOrigin := range allowedOrigins {
+			if origin == allowedOrigin {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+				break
+			}
+		}
+
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, X-API-Key")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+
 	// Create cache middleware with 5-minute TTL
 	cacheMiddleware := middleware.CacheMiddleware(5 * time.Minute)
 
-	// zKillboard routes
-	r.POST("/characters", routes.AddCharacter)
-	r.DELETE("/characters/:id", routes.RemoveCharacter)
-	r.GET("/characters/:id/kills/db", routes.GetCharacterKillsFromDB)
+	// Health check endpoints (no authentication required)
+	r.GET("/health", routes.Health)
+	r.GET("/ready", routes.ReadyCheck)
+	r.GET("/live", routes.LiveCheck)
+
+	// API key middleware for protected routes
+	apiKeyMiddleware := middleware.APIKeyAuth()
+
+	// Apply API key middleware to all routes except health checks and swagger
+	api := r.Group("/")
+	api.Use(apiKeyMiddleware)
+
+	// Character routes
+	api.POST("/characters", routes.AddCharacter)
+	api.DELETE("/characters/:id", routes.RemoveCharacter)
+	api.DELETE("/characters/batch", routes.BatchDeleteCharacters)
+	api.GET("/characters/:id/kills/db", routes.GetCharacterKillsFromDB)
 
 	// Region routes
-	r.POST("/regions/fetch", routes.FetchAndStoreRegions)
-	r.GET("/regions", routes.GetAllRegions)
+	api.POST("/regions/fetch", routes.FetchAndStoreRegions)
+	api.GET("/regions", routes.GetAllRegions)
 
 	// System routes (cached)
-	r.POST("/systems/fetch", routes.FetchAndStoreSystems)
-	r.GET("/systems", cacheMiddleware, routes.GetAllSystems)
-	r.GET("/systems/:id", routes.GetSystemByID)
-	r.GET("/systems/region/:regionID", routes.GetSystemsByRegion)
+	api.POST("/systems/fetch", routes.FetchAndStoreSystems)
+	api.GET("/systems", cacheMiddleware, routes.GetAllSystems)
+	api.GET("/systems/:id", routes.GetSystemByID)
+	api.GET("/systems/region/:regionID", routes.GetSystemsByRegion)
 
 	// Constellation routes
-	r.POST("/constellations/fetch", routes.FetchAndStoreConstellations)
-	r.GET("/constellations", routes.GetAllConstellations)
-	r.GET("/constellations/:id", routes.GetConstellationByID)
-	r.GET("/constellations/region/:regionID", routes.GetConstellationsByRegion)
+	api.POST("/constellations/fetch", routes.FetchAndStoreConstellations)
+	api.GET("/constellations", routes.GetAllConstellations)
+	api.GET("/constellations/:id", routes.GetConstellationByID)
+	api.GET("/constellations/region/:regionID", routes.GetConstellationsByRegion)
 
 	// Item routes
-	r.POST("/items/fetch", routes.FetchAndStoreItems)
-	r.GET("/items", routes.GetAllItems)
-	r.GET("/items/:typeID", routes.GetItemByTypeID)
+	api.POST("/items/fetch", routes.FetchAndStoreItems)
+	api.GET("/items", routes.GetAllItems)
+	api.GET("/items/:typeID", routes.GetItemByTypeID)
 
-	// New routes
-	r.GET("/characters/:id/killmails", routes.GetCharacterKillmails)
-	r.GET("/characters/stats", routes.GetAllCharacterStats)
+	// Character killmail and stats routes
+	api.GET("/characters/:id/killmails", routes.GetCharacterKillmails)
+	api.GET("/characters/stats", routes.GetAllCharacterStats)
 
-	// New data routes (cached)
-	r.GET("/characters", routes.GetAllCharacters)
-	r.GET("/kills", cacheMiddleware, routes.GetAllKills)
+	// Data routes (cached)
+	api.GET("/characters", routes.GetAllCharacters)
+	api.GET("/kills", cacheMiddleware, routes.GetAllKills)
 
 	// Character search and batch management
-	r.GET("/characters/search", routes.SearchCharacters)
-	r.POST("/characters/batch", routes.BatchAddCharacters)
+	api.GET("/characters/search", routes.SearchCharacters)
+	api.POST("/characters/batch", routes.BatchAddCharacters)
 
 	// Admin dashboard routes (cached)
-	r.GET("/admin/stats", cacheMiddleware, routes.GetDashboardStats)
+	api.GET("/admin/stats", cacheMiddleware, routes.GetDashboardStats)
 
 	// Kill by region route (cached)
-	r.GET("/kills/region/:regionID", cacheMiddleware, routes.GetKillsByRegion)
+	api.GET("/kills/region/:regionID", cacheMiddleware, routes.GetKillsByRegion)
+
+	// Kill comments routes
+	api.GET("/kills/:killmail_id/comments", routes.GetKillComments)
+	api.POST("/kills/:killmail_id/comments", routes.CreateKillComment)
+	api.PUT("/comments/:id", routes.UpdateKillComment)
+	api.DELETE("/comments/:id", routes.DeleteKillComment)
 
 	// Competition routes (no caching - always fetch fresh data based on current settings)
-	r.GET("/competition/settings", routes.GetCompetitionSettings)
-	r.POST("/competition/settings", routes.UpdateCompetitionSettings)
-	r.GET("/competition/current", routes.GetCurrentCompetitionStandings)
-	r.GET("/competition/history", routes.GetAllCompetitionHistory)
-	r.GET("/competition/history/:month/:year", routes.GetCompetitionHistory)
-	r.GET("/competition/recent-winners", routes.GetRecentCompetitionWinners)
-	r.GET("/competition/ytd-winners", routes.GetYearToDateWinners)
-	r.POST("/competition/save/:month/:year", routes.SaveMonthlyResults)
+	api.GET("/competition/settings", routes.GetCompetitionSettings)
+	api.POST("/competition/settings", routes.UpdateCompetitionSettings)
+	api.GET("/competition/current", routes.GetCurrentCompetitionStandings)
+	api.GET("/competition/history", routes.GetAllCompetitionHistory)
+	api.GET("/competition/history/:month/:year", routes.GetCompetitionHistory)
+	api.GET("/competition/recent-winners", routes.GetRecentCompetitionWinners)
+	api.GET("/competition/ytd-winners", routes.GetYearToDateWinners)
+	api.POST("/competition/save/:month/:year", routes.SaveMonthlyResults)
 
-	// Setup Swagger
+	// Setup Swagger (no authentication required for documentation)
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	r.Run(":8080")

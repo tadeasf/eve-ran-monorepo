@@ -1,34 +1,29 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { useQuery } from 'react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
 import { Character, Kill, System } from '@/lib/types'
 import { Trophy, Target, TrendingUp } from 'lucide-react'
+import { apiFetchJson } from '@/lib/api'
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D']
 
 type DateRange = 'today' | '7days' | 'month' | 'year' | 'all'
 
 const fetchCharacters = async (): Promise<Character[]> => {
-  const response = await fetch('/api/characters')
-  if (!response.ok) throw new Error('Failed to fetch characters')
-  return response.json()
+  return apiFetchJson<Character[]>('/characters')
 }
 
 const fetchAllKills = async (): Promise<Kill[]> => {
-  const response = await fetch('/api/kills')
-  if (!response.ok) throw new Error('Failed to fetch kills')
-  return response.json()
+  return apiFetchJson<Kill[]>('/kills')
 }
 
 const fetchSystems = async (): Promise<System[]> => {
-  const response = await fetch('/api/systems')
-  if (!response.ok) throw new Error('Failed to fetch systems')
-  return response.json()
+  return apiFetchJson<System[]>('/systems')
 }
 
 const getDateRangeFilter = (range: DateRange): { start: Date; end: Date } => {
@@ -60,9 +55,18 @@ export function AdminAnalytics() {
   const [selectedCharacterId, setSelectedCharacterId] = useState<number | null>(null)
   const [dateRange, setDateRange] = useState<DateRange>('7days')
 
-  const { data: characters, isLoading: isLoadingChars } = useQuery('characters', fetchCharacters)
-  const { data: allKills, isLoading: isLoadingKills } = useQuery('kills', fetchAllKills)
-  const { data: systems, isLoading: isLoadingSystems } = useQuery('systems', fetchSystems)
+  const { data: characters, isLoading: isLoadingChars } = useQuery({
+    queryKey: ['characters'],
+    queryFn: fetchCharacters,
+  })
+  const { data: allKills, isLoading: isLoadingKills } = useQuery({
+    queryKey: ['kills'],
+    queryFn: fetchAllKills,
+  })
+  const { data: systems, isLoading: isLoadingSystems } = useQuery({
+    queryKey: ['systems'],
+    queryFn: fetchSystems,
+  })
 
   // Auto-select first character
   useEffect(() => {

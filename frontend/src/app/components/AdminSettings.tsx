@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useQuery } from 'react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { Save, RotateCcw } from 'lucide-react'
 import { Region } from '@/lib/types'
+import { apiFetchJson } from '@/lib/api'
 
 interface DashboardSettings {
   defaultRegions: number[]
@@ -24,9 +25,7 @@ const DEFAULT_SETTINGS: DashboardSettings = {
 }
 
 const fetchRegions = async (): Promise<Region[]> => {
-  const response = await fetch('/api/regions')
-  if (!response.ok) throw new Error('Failed to fetch regions')
-  return response.json()
+  return apiFetchJson<Region[]>('/regions')
 }
 
 export function AdminSettings() {
@@ -34,7 +33,10 @@ export function AdminSettings() {
   const [settings, setSettings] = useState<DashboardSettings>(DEFAULT_SETTINGS)
   const [selectedRegions, setSelectedRegions] = useState<number[]>([])
 
-  const { data: regions, isLoading } = useQuery('regions', fetchRegions)
+  const { data: regions, isLoading } = useQuery({
+    queryKey: ['regions'],
+    queryFn: fetchRegions,
+  })
 
   // Load settings from localStorage on mount
   useEffect(() => {

@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
 import { CharacterStats, Kill } from '../../lib/types'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/app/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatISK, formatDate } from '../../lib/utils'
 import { ArrowUpDown, X } from 'lucide-react'
-import { Button } from "@/app/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface CharacterKillsProps {
   character: CharacterStats

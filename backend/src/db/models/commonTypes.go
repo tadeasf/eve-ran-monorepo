@@ -55,6 +55,9 @@ func (p *Position) Scan(value interface{}) error {
 // PaginatedResponse model
 type PaginatedResponse struct {
 	Data       interface{} `json:"data"`
+	Total      int64       `json:"total"`
+	Limit      int         `json:"limit"`
+	Offset     int         `json:"offset"`
 	Page       int         `json:"page"`
 	PageSize   int         `json:"pageSize"`
 	TotalItems int         `json:"totalItems"`

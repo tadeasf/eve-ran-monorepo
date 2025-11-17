@@ -35,6 +35,51 @@ func RunIndexMigrations() error {
 			table: "kills",
 			sql:   "CREATE INDEX IF NOT EXISTS idx_kills_system_time ON kills (solar_system_id, killmail_time)",
 		},
+		{
+			name:  "idx_kills_character_time",
+			table: "kills",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_kills_character_time ON kills (character_id, killmail_time DESC)",
+		},
+		{
+			name:  "idx_kills_victim_ship_type",
+			table: "kills",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_kills_victim_ship_type ON kills (victim_ship_type_id)",
+		},
+		{
+			name:  "idx_zkills_character_id",
+			table: "zkills",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_zkills_character_id ON zkills (character_id)",
+		},
+		{
+			name:  "idx_zkills_killmail_id",
+			table: "zkills",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_zkills_killmail_id ON zkills (killmail_id)",
+		},
+		{
+			name:  "idx_competition_results_year_month",
+			table: "competition_results",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_competition_results_year_month ON competition_results (year, month)",
+		},
+		{
+			name:  "idx_competition_results_character",
+			table: "competition_results",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_competition_results_character ON competition_results (character_id)",
+		},
+		{
+			name:  "idx_characters_name",
+			table: "characters",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_characters_name ON characters (name)",
+		},
+		{
+			name:  "idx_systems_region_id",
+			table: "systems",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_systems_region_id ON systems (region_id)",
+		},
+		{
+			name:  "idx_systems_constellation_id",
+			table: "systems",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_systems_constellation_id ON systems (constellation_id)",
+		},
 	}
 
 	for _, idx := range indexes {

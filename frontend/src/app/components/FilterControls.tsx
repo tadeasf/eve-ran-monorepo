@@ -1,8 +1,8 @@
 import React from 'react'
 import { Region } from '@/lib/types'
-import { Button } from "@/app/components/ui/button"
-import { Skeleton } from "@/app/components/ui/skeleton"
-import { Progress } from "@/app/components/ui/progress"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Progress } from "@/components/ui/progress"
 import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {

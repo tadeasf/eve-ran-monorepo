@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { CharacterStats, Kill } from '../../lib/types'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/app/components/ui/table"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { formatISK } from '../../lib/utils'
 import { ArrowUpDown } from 'lucide-react'
-import { Button } from "@/app/components/ui/button"
+import { Button } from "@/components/ui/button"
 import CharacterKills from './CharacterKills'
 
 interface CharacterTableProps {

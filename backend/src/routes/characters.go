@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -30,16 +31,20 @@ func GetAllCharacters(c *gin.Context) {
 	c.JSON(http.StatusOK, characters)
 }
 
-// GetAllKills retrieves all kills from the database with optional filters
+// GetAllKills retrieves all kills from the database with optional filters and pagination
 // @Summary Get all kills
-// @Description Fetch all kills from the database, optionally filtered by character_id and date range
+// @Description Fetch all kills from the database, optionally filtered by character_id, date range, ship type, with pagination support
 // @Tags kills
 // @Accept json
 // @Produce json
 // @Param character_id query int false "Filter by character ID"
 // @Param start_date query string false "Start date (YYYY-MM-DD)"
 // @Param end_date query string false "End date (YYYY-MM-DD)"
-// @Success 200 {array} models.Kill
+// @Param ship_type_id query int false "Filter by victim ship type ID"
+// @Param limit query int false "Number of results per page (default: 50, max: 500)"
+// @Param offset query int false "Offset for pagination (default: 0)"
+// @Security ApiKeyAuth
+// @Success 200 {object} models.PaginatedResponse
 // @Failure 500 {object} models.ErrorResponse
 // @Router /kills [get]
 func GetAllKills(c *gin.Context) {
@@ -47,9 +52,29 @@ func GetAllKills(c *gin.Context) {
 	characterIDStr := c.Query("character_id")
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
+	shipTypeIDStr := c.Query("ship_type_id")
+	limitStr := c.Query("limit")
+	offsetStr := c.Query("offset")
+
+	// Parse pagination parameters
+	limit := 50 // Default limit
+	if limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil {
+			if parsedLimit > 0 && parsedLimit <= 500 {
+				limit = parsedLimit
+			}
+		}
+	}
+
+	offset := 0
+	if offsetStr != "" {
+		if parsedOffset, err := strconv.Atoi(offsetStr); err == nil && parsedOffset >= 0 {
+			offset = parsedOffset
+		}
+	}
 
 	// Build query with filters
-	query := db.DB.Preload("ZkillData")
+	query := db.DB.Preload("ZkillData").Order("killmail_time DESC")
 
 	if characterIDStr != "" {
 		characterID, err := strconv.ParseInt(characterIDStr, 10, 64)
@@ -62,13 +87,37 @@ func GetAllKills(c *gin.Context) {
 		query = query.Where("killmail_time BETWEEN ? AND ?", startDate, endDate)
 	}
 
-	var kills []models.Kill
-	if err := query.Find(&kills).Error; err != nil {
+	if shipTypeIDStr != "" {
+		shipTypeID, err := strconv.Atoi(shipTypeIDStr)
+		if err == nil {
+			query = query.Where("victim_ship_type_id = ?", shipTypeID)
+		}
+	}
+
+	// Get total count
+	var total int64
+	countQuery := query
+	if err := countQuery.Model(&models.Kill{}).Count(&total).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, kills)
+	// Get paginated results
+	var kills []models.Kill
+	if err := query.Limit(limit).Offset(offset).Find(&kills).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Return paginated response
+	c.JSON(http.StatusOK, models.PaginatedResponse{
+		Data:       kills,
+		Total:      total,
+		Limit:      limit,
+		Offset:     offset,
+		Page:       (offset / limit) + 1,
+		TotalPages: (int(total) + limit - 1) / limit,
+	})
 }
 
 // GetAllCharacterStats retrieves stats for all characters with filters
@@ -273,6 +322,71 @@ func RemoveCharacter(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
+}
+
+// BatchDeleteCharacters removes multiple characters from the database
+// @Summary Batch delete characters
+// @Description Remove multiple characters by their IDs
+// @Tags characters
+// @Accept json
+// @Produce json
+// @Param characters body []int64 true "Array of character IDs to delete"
+// @Security ApiKeyAuth
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /characters/batch [delete]
+func BatchDeleteCharacters(c *gin.Context) {
+	var characterIDs []int64
+	if err := c.ShouldBindJSON(&characterIDs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	results := make(map[string]interface{})
+	successCount := 0
+	failureCount := 0
+	notFoundCount := 0
+	var errors []string
+	var notFound []int64
+
+	for _, characterID := range characterIDs {
+		// Check if character exists
+		existingCharacter, err := queries.GetCharacterByID(characterID)
+		if err != nil {
+			failureCount++
+			errors = append(errors, fmt.Sprintf("Error checking character %d: %v", characterID, err))
+			continue
+		}
+		if existingCharacter == nil {
+			notFoundCount++
+			notFound = append(notFound, characterID)
+			continue
+		}
+
+		// Delete character
+		err = queries.DeleteCharacter(characterID)
+		if err != nil {
+			failureCount++
+			errors = append(errors, fmt.Sprintf("Error deleting character %d: %v", characterID, err))
+			continue
+		}
+
+		successCount++
+	}
+
+	results["success_count"] = successCount
+	results["failure_count"] = failureCount
+	results["not_found_count"] = notFoundCount
+	results["total_processed"] = len(characterIDs)
+	if len(errors) > 0 {
+		results["errors"] = errors
+	}
+	if len(notFound) > 0 {
+		results["not_found"] = notFound
+	}
+
+	c.JSON(http.StatusOK, results)
 }
 
 // GetDashboardStats returns statistics for the admin dashboard

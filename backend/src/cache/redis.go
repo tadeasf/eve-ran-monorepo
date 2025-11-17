@@ -82,3 +82,8 @@ func Delete(key string) error {
 func FlushAll() error {
 	return RedisClient.FlushAll(ctx).Err()
 }
+
+// GetRedisClient returns the Redis client instance
+func GetRedisClient() *redis.Client {
+	return RedisClient
+}

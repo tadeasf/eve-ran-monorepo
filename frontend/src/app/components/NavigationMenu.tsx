@@ -11,7 +11,7 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
   navigationMenuTriggerStyle,
-} from "@/app/components/ui/navigation-menu"
+} from "@/components/ui/navigation-menu"
 import { ModeToggle } from "./ModeToggle"
 
 export function MainNav() {
@@ -40,6 +40,20 @@ export function MainNav() {
             <Link href="/competition" legacyBehavior passHref>
               <NavigationMenuLink className={navigationMenuTriggerStyle()}>
                 Competition
+              </NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/kills" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                Kills Feed
+              </NavigationMenuLink>
+            </Link>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <Link href="/activity" legacyBehavior passHref>
+              <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                Activity
               </NavigationMenuLink>
             </Link>
           </NavigationMenuItem>

@@ -2,8 +2,8 @@
 
 import { Bar, BarChart, XAxis, YAxis, ResponsiveContainer } from "recharts"
 import { TrendingUp, TrendingDown } from "lucide-react"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/app/components/ui/card"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/app/components/ui/chart"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { CharacterStats } from '../../lib/types'
 import { ChartConfig } from '../../lib/types'
 

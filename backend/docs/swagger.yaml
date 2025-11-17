@@ -109,12 +109,38 @@ definitions:
       zkillData:
         $ref: '#/definitions/models.Zkill'
     type: object
+  models.KillComment:
+    properties:
+      comment:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      kill_id:
+        type: integer
+      killmail_id:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        description: For future user management
+        type: integer
+      username:
+        type: string
+    type: object
   models.PaginatedResponse:
     properties:
       data: {}
+      limit:
+        type: integer
+      offset:
+        type: integer
       page:
         type: integer
       pageSize:
+        type: integer
+      total:
         type: integer
       totalItems:
         type: integer
@@ -203,6 +229,24 @@ definitions:
       totalValue:
         format: float64
         type: number
+    type: object
+  routes.HealthResponse:
+    properties:
+      services:
+        additionalProperties:
+          $ref: '#/definitions/routes.ServiceInfo'
+        type: object
+      status:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  routes.ServiceInfo:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
     type: object
 host: api.tundragon.space
 info:
@@ -350,6 +394,40 @@ paths:
       tags:
       - characters
   /characters/batch:
+    delete:
+      consumes:
+      - application/json
+      description: Remove multiple characters by their IDs
+      parameters:
+      - description: Array of character IDs to delete
+        in: body
+        name: characters
+        required: true
+        schema:
+          items:
+            type: integer
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Batch delete characters
+      tags:
+      - characters
     post:
       consumes:
       - application/json
@@ -455,6 +533,79 @@ paths:
       summary: Get all character stats
       tags:
       - characters
+  /comments/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a comment from a killmail
+      parameters:
+      - description: Comment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Delete kill comment
+      tags:
+      - comments
+    put:
+      consumes:
+      - application/json
+      description: Update an existing comment on a killmail
+      parameters:
+      - description: Comment ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated comment data
+        in: body
+        name: comment
+        required: true
+        schema:
+          $ref: '#/definitions/models.KillComment'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.KillComment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Update kill comment
+      tags:
+      - comments
   /competition/current:
     get:
       description: Get the current month's competition standings based on active settings
@@ -669,12 +820,25 @@ paths:
       summary: Get year-to-date winners
       tags:
       - competition
+  /health:
+    get:
+      description: Returns the health status of the API
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.HealthResponse'
+      summary: Basic health check
+      tags:
+      - health
   /kills:
     get:
       consumes:
       - application/json
-      description: Fetch all kills from the database, optionally filtered by character_id
-        and date range
+      description: Fetch all kills from the database, optionally filtered by character_id,
+        date range, ship type, with pagination support
       parameters:
       - description: Filter by character ID
         in: query
@@ -688,6 +852,45 @@ paths:
         in: query
         name: end_date
         type: string
+      - description: Filter by victim ship type ID
+        in: query
+        name: ship_type_id
+        type: integer
+      - description: 'Number of results per page (default: 50, max: 500)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Offset for pagination (default: 0)'
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.PaginatedResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get all kills
+      tags:
+      - kills
+  /kills/{killmail_id}/comments:
+    get:
+      consumes:
+      - application/json
+      description: Fetch all comments for a specific killmail
+      parameters:
+      - description: Killmail ID
+        in: path
+        name: killmail_id
+        required: true
+        type: integer
       produces:
       - application/json
       responses:
@@ -695,15 +898,61 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/models.Kill'
+              $ref: '#/definitions/models.KillComment'
             type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: Get all kills
+      security:
+      - ApiKeyAuth: []
+      summary: Get kill comments
       tags:
-      - kills
+      - comments
+    post:
+      consumes:
+      - application/json
+      description: Add a new comment to a killmail
+      parameters:
+      - description: Killmail ID
+        in: path
+        name: killmail_id
+        required: true
+        type: integer
+      - description: Comment data
+        in: body
+        name: comment
+        required: true
+        schema:
+          $ref: '#/definitions/models.KillComment'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.KillComment'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Create kill comment
+      tags:
+      - comments
   /kills/region/{regionID}:
     get:
       consumes:
@@ -743,6 +992,36 @@ paths:
       summary: Get kills by region
       tags:
       - kills
+  /live:
+    get:
+      description: Returns whether the API is alive (for Kubernetes liveness probe)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.HealthResponse'
+      summary: Liveness check
+      tags:
+      - health
+  /ready:
+    get:
+      description: Returns the readiness status of the API and its dependencies
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/routes.HealthResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/routes.HealthResponse'
+      summary: Readiness check
+      tags:
+      - health
   /regions:
     get:
       consumes:
@@ -767,4 +1046,10 @@ paths:
 schemes:
 - http
 - https
+securityDefinitions:
+  ApiKeyAuth:
+    description: API key for authentication. Add your API key in the X-API-Key header.
+    in: header
+    name: X-API-Key
+    type: apiKey
 swagger: "2.0"

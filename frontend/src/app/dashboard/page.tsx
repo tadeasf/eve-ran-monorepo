@@ -1,17 +1,17 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
-import { useQuery } from 'react-query'
+import { useQuery } from '@tanstack/react-query'
 import Image from 'next/image'
 import FilterControls from '../components/FilterControls'
 import TotalKillsChart from '../components/TotalKillsChart'
 import TotalIskChart from '../components/TotalIskChart'
 import { Region, CharacterStats, Character, ChartConfig, Kill } from '../../lib/types'
-import { Skeleton } from "../components/ui/skeleton"
-import { Progress } from "../components/ui/progress"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Progress } from "@/components/ui/progress"
 import Top10Killers from '../components/Top10Killers'
 import Top10Points from '../components/Top10Points'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import {
     Table,
     TableBody,
@@ -28,15 +28,12 @@ import {
 } from '@/components/ui/popover'
 import { Badge } from '@/components/ui/badge'
 import { BarChart3, ArrowUpDown } from 'lucide-react'
-import { Button } from '@/app/components/ui/button'
+import { Button } from '@/components/ui/button'
 import { formatISK } from '../../lib/utils'
+import { apiFetchJson } from '@/lib/api'
 
 const fetchRegions = async (): Promise<Region[]> => {
-  const response = await fetch('/api/regions')
-  if (!response.ok) {
-    throw new Error('Failed to fetch regions')
-  }
-  return response.json()
+  return apiFetchJson<Region[]>('/regions')
 }
 
 const getDaysAgoDate = (daysAgo: number): string => {
@@ -101,7 +98,10 @@ export default function Dashboard() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [systems, setSystems] = useState<Map<number, string>>(new Map())
 
-  const { data: regions, isLoading: isRegionsLoading, error: regionsError } = useQuery<Region[]>('regions', fetchRegions)
+  const { data: regions, isLoading: isRegionsLoading, error: regionsError } = useQuery({
+    queryKey: ['regions'],
+    queryFn: fetchRegions,
+  })
 
   useEffect(() => {
     if (regions && regions.length > 0 && !settingsLoaded) {

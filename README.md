@@ -23,7 +23,12 @@
 - **Trend Analysis**: Track performance trends over time
 - **Region & System Filtering**: Filter kills by EVE Online regions and date ranges
 - **Admin Dashboard**: Manage characters, configure competition settings, and view analytics
+- **Activity Feed**: Recent kills feed with comments and achievements
 - **Real-time Data**: Periodic updates from [zKillboard](https://zkillboard.com/) and [EVE ESI](https://esi.evetech.net/)
+- **API Security**: X-API-Key authentication for all endpoints
+- **Health Monitoring**: Kubernetes-ready health check endpoints
+- **Data Validation**: Comprehensive validation for ESI and zKillboard responses
+- **Optimized Performance**: Database indexing and connection pooling
 
 ## Demo
 
@@ -94,25 +99,33 @@
    cd eve-ran-monorepo
    ```
 
-2. **Backend setup:**
+2. **Automated setup (recommended):**
+   ```bash
+   ./scripts/setup.sh
+   ```
+
+   Or manual setup:
+
+3. **Backend setup:**
    ```bash
    cd backend
    cp .env.example .env
-   # Edit .env with your PostgreSQL credentials
+   # Generate API key: openssl rand -base64 32
+   # Edit .env with your PostgreSQL credentials and API key
    go mod download
    go run src/main.go
    ```
 
-3. **Frontend setup:**
+4. **Frontend setup:**
    ```bash
    cd frontend
    cp .env.example .env.local
-   # Edit .env.local with your backend API URL
+   # Edit .env.local with your backend API URL and API key (must match backend)
    npm install
    npm run dev
    ```
 
-4. **Database setup:**
+5. **Database setup:**
    - Create a PostgreSQL database
    - Migrations run automatically on backend startup
 
@@ -140,6 +153,7 @@ Configure your reverse proxy (Caddy/Nginx) to route traffic to these ports.
 
 ## Additional Documentation
 
+- **[Implementation Updates](./docs/IMPLEMENTATION_UPDATES.md)**: Recent improvements and new features (v2.1.0)
 - **[ESI Rate Limiting](./docs/ESI_RATE_LIMITING_UPDATE.md)**: Details on EVE Online ESI API rate limiting implementation
 - **[Deployment Guide](./docs/DEPLOYMENT.md)**: Production deployment instructions and configuration
 

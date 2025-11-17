@@ -42,6 +42,20 @@ func InitDB() {
 
 	log.Println("Successfully connected to the database")
 
+	// Configure connection pool
+	sqlDB, err := DB.DB()
+	if err != nil {
+		log.Fatal("Failed to get database instance:", err)
+	}
+
+	// Connection pool settings for optimal performance
+	sqlDB.SetMaxIdleConns(10)                  // Maximum number of idle connections
+	sqlDB.SetMaxOpenConns(100)                 // Maximum number of open connections
+	sqlDB.SetConnMaxLifetime(time.Hour)        // Maximum lifetime of a connection
+	sqlDB.SetConnMaxIdleTime(10 * time.Minute) // Maximum idle time before closing
+
+	log.Println("Database connection pool configured successfully")
+
 	// Run data migrations first (before schema changes)
 	err = RunDataMigrations()
 	if err != nil {
@@ -67,6 +81,7 @@ func MigrateSchema() error {
 		&models.Character{},
 		&models.Zkill{},
 		&models.Kill{},
+		&models.KillComment{},
 		&models.Region{},
 		&models.System{},
 		&models.Constellation{},
