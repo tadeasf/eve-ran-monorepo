@@ -47,13 +47,17 @@ func EnhanceKills() {
 			continue
 		}
 
-		utils.LogToFile(fmt.Sprintf("Enhanced kill data: %+v", enhancedKill))
+		// Validate that we got real data before storing
+		if enhancedKill.KillmailID == 0 {
+			utils.LogError(fmt.Sprintf("Skipping kill %d: received empty data from ESI", zkill.KillmailID))
+			continue
+		}
 
-		// Create new Kill entry
-		if err := db.DB.Create(enhancedKill).Error; err != nil {
-			utils.LogError(fmt.Sprintf("Error storing enhanced kill %d: %v", zkill.KillmailID, err))
+		// Use UpsertKill instead of Create to handle duplicates
+		if err := queries.UpsertKill(enhancedKill); err != nil {
+			utils.LogError(fmt.Sprintf("Error upserting kill %d: %v", zkill.KillmailID, err))
 		} else {
-			utils.LogToConsole(fmt.Sprintf("Added new kill: %d", zkill.KillmailID))
+			utils.LogToConsole(fmt.Sprintf("Upserted kill: %d", zkill.KillmailID))
 		}
 	}
 }
@@ -62,9 +66,14 @@ func fetchEnhancedKillData(zkill models.Zkill) (*models.Kill, error) {
 	url := fmt.Sprintf("%s/killmails/%d/%s/?datasource=tranquility", esiBaseURL, zkill.KillmailID, zkill.Hash)
 	resp, err := http.Get(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("HTTP request failed: %v", err)
 	}
 	defer resp.Body.Close()
+
+	// Check HTTP status code
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned status %d for killmail %d", resp.StatusCode, zkill.KillmailID)
+	}
 
 	var esiKill struct {
 		KillmailID    int64     `json:"killmail_id"`
@@ -86,7 +95,12 @@ func fetchEnhancedKillData(zkill models.Zkill) (*models.Kill, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&esiKill); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("JSON decode failed: %v", err)
+	}
+
+	// Validate required fields
+	if esiKill.KillmailID == 0 {
+		return nil, fmt.Errorf("ESI returned killmail with ID 0")
 	}
 
 	// Convert Attackers to JSON byte array
@@ -99,6 +113,7 @@ func fetchEnhancedKillData(zkill models.Zkill) (*models.Kill, error) {
 		KillmailID:    esiKill.KillmailID,
 		KillmailTime:  esiKill.KillmailTime,
 		SolarSystemID: esiKill.SolarSystemID,
+		CharacterID:   zkill.CharacterID, // Add character ID from zkill
 		Victim: models.Victim{
 			AllianceID:    esiKill.Victim.AllianceID,
 			CharacterID:   esiKill.Victim.CharacterID,
@@ -129,9 +144,14 @@ func EnhanceKill(killmailID int64) (*models.Kill, error) {
 	url := fmt.Sprintf("%s/killmails/%d/%s/?datasource=tranquility", esiBaseURL, killmailID, zkill.Hash)
 	resp, err := http.Get(url)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch killmail from ESI: %v", err)
+		return nil, fmt.Errorf("HTTP request failed: %v", err)
 	}
 	defer resp.Body.Close()
+
+	// Check HTTP status code
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ESI returned status %d for killmail %d", resp.StatusCode, killmailID)
+	}
 
 	var esiKill struct {
 		KillmailID    int64     `json:"killmail_id"`
@@ -153,7 +173,12 @@ func EnhanceKill(killmailID int64) (*models.Kill, error) {
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&esiKill); err != nil {
-		return nil, fmt.Errorf("failed to decode ESI response: %v", err)
+		return nil, fmt.Errorf("JSON decode failed: %v", err)
+	}
+
+	// Validate required fields
+	if esiKill.KillmailID == 0 {
+		return nil, fmt.Errorf("ESI returned killmail with ID 0")
 	}
 
 	// Marshal the entire Attackers slice into a single JSON byte array

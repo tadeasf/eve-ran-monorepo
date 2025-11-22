@@ -9,6 +9,7 @@ import (
 	"github.com/tadeasf/eve-ran/src/db"
 	"github.com/tadeasf/eve-ran/src/db/models"
 	"github.com/tadeasf/eve-ran/src/db/queries"
+	"github.com/tadeasf/eve-ran/src/jobs"
 	"github.com/tadeasf/eve-ran/src/services"
 )
 
@@ -429,6 +430,7 @@ func BatchAddCharacters(c *gin.Context) {
 	duplicateCount := 0
 	var errors []string
 	var duplicates []int64
+	var newCharacterIDs []int64 // Track successfully added characters
 
 	for _, characterID := range characterIDs {
 		// Check if character already exists
@@ -456,6 +458,13 @@ func BatchAddCharacters(c *gin.Context) {
 		}
 
 		successCount++
+		newCharacterIDs = append(newCharacterIDs, characterID)
+	}
+
+	// Trigger killmail fetching for newly added characters in background
+	if len(newCharacterIDs) > 0 {
+		go jobs.FetchKillsForCharacters(newCharacterIDs)
+		results["message"] = "Characters added successfully. Killmail fetching started in background."
 	}
 
 	results["success_count"] = successCount
