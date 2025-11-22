@@ -58,6 +58,8 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=https://api.tundragon.space
+      # Set CORPORATION_NAME environment variable to customize branding
+      - NEXT_PUBLIC_CORPORATION_NAME=${CORPORATION_NAME:-Tundragon Corp}
     env_file:
       - ./frontend/.env.local
     restart: always

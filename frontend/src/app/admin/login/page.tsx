@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useAppConfig } from "@/app/contexts/AppConfigContext";
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -15,6 +16,7 @@ export default function AdminLogin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { config } = useAppConfig();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +53,7 @@ export default function AdminLogin() {
           </div>
           <CardTitle className="text-2xl">Admin Login</CardTitle>
           <CardDescription>
-            Access the Tundragon Corporation admin panel
+            Access the {config.corporation_name} admin panel
           </CardDescription>
         </CardHeader>
         <CardContent>

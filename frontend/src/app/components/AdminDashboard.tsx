@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/app/contexts/AuthContext'
+import { useAppConfig } from '@/app/contexts/AppConfigContext'
 import { Button } from '@/app/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card'
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar'
@@ -38,6 +39,7 @@ export function AdminDashboard() {
     } | null>(null)
     const [isLoadingStats, setIsLoadingStats] = useState(true)
     const { logout } = useAuth()
+    const { config } = useAppConfig()
 
     // Load dashboard stats on component mount
     useEffect(() => {
@@ -73,7 +75,7 @@ export function AdminDashboard() {
                         <div>
                             <h1 className="text-3xl font-bold">Admin Overview</h1>
                             <p className="text-muted-foreground">
-                                Welcome to the Tundragon Corporation admin panel
+                                Welcome to the {config.corporation_name} admin panel
                             </p>
                         </div>
 
@@ -234,7 +236,7 @@ export function AdminDashboard() {
                             <Shield className="size-8 text-primary" />
                             <div>
                                 <h2 className="text-lg font-semibold">Admin Panel</h2>
-                                <p className="text-sm text-muted-foreground">Tundragon Corp</p>
+                                <p className="text-sm text-muted-foreground">{config.corporation_name}</p>
                             </div>
                         </div>
                     </SidebarHeader>
@@ -266,7 +268,7 @@ export function AdminDashboard() {
                             </div>
                             <div className="flex-1">
                                 <p className="text-sm font-medium">Admin User</p>
-                                <p className="text-xs text-muted-foreground">admin@tundragon.corp</p>
+                                <p className="text-xs text-muted-foreground">admin@{config.corporation_name.toLowerCase().replace(/\s+/g, '.')}</p>
                             </div>
                         </div>
                         <Button
