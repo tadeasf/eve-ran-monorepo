@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
 import { Character } from '@/lib/types'
 import { Trophy, Target, TrendingUp } from 'lucide-react'
+import { CharacterCombobox } from './CharacterCombobox'
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D']
 
@@ -167,21 +168,13 @@ export function AdminAnalytics() {
             </SelectContent>
           </Select>
 
-          <Select
-            value={selectedCharacterId?.toString() || ''}
-            onValueChange={(value) => setSelectedCharacterId(parseInt(value))}
-          >
-            <SelectTrigger className="w-full sm:w-[250px]">
-              <SelectValue placeholder="Select a character" />
-            </SelectTrigger>
-            <SelectContent>
-              {characters?.map((character) => (
-                <SelectItem key={character.id} value={character.id.toString()}>
-                  {character.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <CharacterCombobox
+            characters={characters || []}
+            value={selectedCharacterId}
+            onValueChange={setSelectedCharacterId}
+            placeholder="Select a character"
+            className="w-full sm:w-[250px]"
+          />
         </div>
       </div>
 
