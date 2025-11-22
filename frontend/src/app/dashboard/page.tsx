@@ -6,7 +6,7 @@ import Image from 'next/image'
 import FilterControls from '../components/FilterControls'
 import TotalKillsChart from '../components/TotalKillsChart'
 import TotalIskChart from '../components/TotalIskChart'
-import { Region, CharacterStats, Character, ChartConfig, Kill } from '../../lib/types'
+import { Region, CharacterStats, ChartConfig, Kill } from '../../lib/types'
 import { Skeleton } from "../components/ui/skeleton"
 import { Progress } from "../components/ui/progress"
 import Top10Killers from '../components/Top10Killers'
@@ -37,6 +37,14 @@ const fetchRegions = async (): Promise<Region[]> => {
     throw new Error('Failed to fetch regions')
   }
   return response.json()
+}
+
+interface PaginatedKillsResponse {
+  kills: Kill[]
+  total_count: number
+  page: number
+  page_size: number
+  total_pages: number
 }
 
 const getDaysAgoDate = (daysAgo: number): string => {
@@ -151,40 +159,45 @@ export default function Dashboard() {
   const fetchCharacterStats = useCallback(async () => {
     setIsLoading(true)
     try {
-      const characterResponse = await fetch('/api/characters')
-      const characterData: Character[] = await characterResponse.json()
+      // Use the optimized /characters/stats endpoint with region filtering
+      const regionParams = selectedRegions.map(r => `regionID=${r.id}`).join('&')
+      const statsUrl = `/api/characters/stats?${regionParams}&startDate=${startDate}&endDate=${endDate}`
 
-      const killsPromises = selectedRegions.map(async (region) => {
-        const response = await fetch(`/api/kills/region/${region.id}?startDate=${startDate}&endDate=${endDate}`)
-        if (!response.ok) {
-          throw new Error(`Failed to fetch data for region ${region.id}`)
-        }
-        return response.json()
-      })
+      const [statsResponse, killsResponses] = await Promise.all([
+        fetch(statsUrl),
+        // Still fetch kills for charts and popover display
+        Promise.all(selectedRegions.map(async (region) => {
+          const response = await fetch(`/api/kills/region/${region.id}?startDate=${startDate}&endDate=${endDate}`)
+          if (!response.ok) {
+            throw new Error(`Failed to fetch data for region ${region.id}`)
+          }
+          return response.json()
+        }))
+      ])
 
-      const regionKills = await Promise.all(killsPromises)
-      const allKills = regionKills.flat().filter((kill: Kill) => {
-        const killDate = new Date(kill.KillmailTime).toISOString().split('T')[0]
-        return killDate >= startDate && killDate <= endDate
-      })
-      setAllKills(allKills)
+      if (!statsResponse.ok) {
+        throw new Error('Failed to fetch character stats')
+      }
 
-      const characterStats = characterData.map((character) => {
-        const characterKills = allKills.filter((kill: Kill) => kill.CharacterID === character.id)
-        const killCount = characterKills.length
-        const totalIsk = characterKills.reduce((sum, kill) => sum + kill.ZkillData.TotalValue, 0)
-        const totalValue = characterKills.reduce((sum, kill) => sum + kill.ZkillData.TotalValue, 0)
-
-        return {
-          character_id: character.id,
-          name: character.name,
-          kill_count: killCount,
-          total_isk: totalIsk,
-          total_value: totalValue
-        }
-      })
-
+      // Get pre-aggregated character stats from backend
+      const characterStats: CharacterStats[] = await statsResponse.json()
       setCharacters(characterStats)
+
+      // Process kills for charts and popover
+      // Backend now returns paginated response: {kills: [], total_count, page, ...}
+      const allKills = killsResponses
+        .flatMap((response: Kill[] | PaginatedKillsResponse) => {
+          // Handle both old array format and new paginated format for backwards compatibility
+          if (Array.isArray(response)) {
+            return response
+          }
+          return response.kills || []
+        })
+        .filter((kill: Kill) => {
+          const killDate = new Date(kill.KillmailTime).toISOString().split('T')[0]
+          return killDate >= startDate && killDate <= endDate
+        })
+      setAllKills(allKills)
 
       const killsOverTime = allKills.reduce((acc, kill) => {
         const date = kill.KillmailTime.split('T')[0]

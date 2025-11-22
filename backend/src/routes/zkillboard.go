@@ -144,16 +144,18 @@ func GetCharacterKillsFromDB(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// GetKillsByRegion retrieves kills by region
+// GetKillsByRegion retrieves kills by region with pagination
 // @Summary Get kills by region
-// @Description Fetch all kills for a region from the database
+// @Description Fetch kills for a region from the database with optional pagination and date filtering
 // @Tags kills
 // @Accept json
 // @Produce json
 // @Param regionID path int true "Region ID"
 // @Param startDate query string false "Start date (YYYY-MM-DD)"
 // @Param endDate query string false "End date (YYYY-MM-DD)"
-// @Success 200 {array} models.Kill
+// @Param page query int false "Page number (default: 1)"
+// @Param pageSize query int false "Page size (default: 1000, max: 5000)"
+// @Success 200 {object} map[string]interface{} "Returns kills array, total count, page, and pageSize"
 // @Failure 400 {object} models.ErrorResponse
 // @Failure 500 {object} models.ErrorResponse
 // @Router /kills/region/{regionID} [get]
@@ -167,18 +169,52 @@ func GetKillsByRegion(c *gin.Context) {
 	startDate := c.Query("startDate")
 	endDate := c.Query("endDate")
 
+	// Parse pagination parameters
+	page := 1
+	if pageParam := c.Query("page"); pageParam != "" {
+		if p, err := strconv.Atoi(pageParam); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	pageSize := 1000
+	if pageSizeParam := c.Query("pageSize"); pageSizeParam != "" {
+		if ps, err := strconv.Atoi(pageSizeParam); err == nil && ps > 0 {
+			pageSize = ps
+			// Cap at 5000 to prevent excessive memory usage
+			if pageSize > 5000 {
+				pageSize = 5000
+			}
+		}
+	}
+
 	systemIDs, err := queries.GetSolarSystemIDsByRegion(regionID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	var kills []models.Kill
-	query := db.DB.Preload("ZkillData").Where("solar_system_id IN ?", systemIDs)
+	// Build base query
+	baseQuery := db.DB.Model(&models.Kill{}).Where("solar_system_id IN ?", systemIDs)
 
 	if startDate != "" && endDate != "" {
-		query = query.Where("killmail_time BETWEEN ? AND ?", startDate, endDate)
+		baseQuery = baseQuery.Where("killmail_time BETWEEN ? AND ?", startDate, endDate)
 	}
+
+	// Get total count
+	var totalCount int64
+	if err := baseQuery.Count(&totalCount).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Fetch paginated results
+	var kills []models.Kill
+	offset := (page - 1) * pageSize
+	query := baseQuery.Preload("ZkillData").
+		Order("killmail_time DESC").
+		Limit(pageSize).
+		Offset(offset)
 
 	if err := query.Find(&kills).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -194,5 +230,14 @@ func GetKillsByRegion(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, kills)
+	// Return paginated response with metadata
+	response := gin.H{
+		"kills":       kills,
+		"total_count": totalCount,
+		"page":        page,
+		"page_size":   pageSize,
+		"total_pages": (totalCount + int64(pageSize) - 1) / int64(pageSize),
+	}
+
+	c.JSON(http.StatusOK, response)
 }

@@ -35,6 +35,26 @@ func RunIndexMigrations() error {
 			table: "kills",
 			sql:   "CREATE INDEX IF NOT EXISTS idx_kills_system_time ON kills (solar_system_id, killmail_time)",
 		},
+		{
+			name:  "idx_kills_character_time",
+			table: "kills",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_kills_character_time ON kills (character_id, killmail_time) WHERE character_id != 0",
+		},
+		{
+			name:  "idx_kills_time_character",
+			table: "kills",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_kills_time_character ON kills (killmail_time, character_id) WHERE character_id != 0",
+		},
+		{
+			name:  "idx_zkills_killmail_id",
+			table: "zkills",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_zkills_killmail_id ON zkills (killmail_id)",
+		},
+		{
+			name:  "idx_systems_region_id",
+			table: "systems",
+			sql:   "CREATE INDEX IF NOT EXISTS idx_systems_region_id ON systems (region_id)",
+		},
 	}
 
 	for _, idx := range indexes {

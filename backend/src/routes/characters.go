@@ -30,54 +30,109 @@ func GetAllCharacters(c *gin.Context) {
 	c.JSON(http.StatusOK, characters)
 }
 
-// GetAllKills retrieves all kills from the database with optional filters
-// @Summary Get all kills
-// @Description Fetch all kills from the database, optionally filtered by character_id and date range
+// GetAllKills retrieves kills from the database with optional filters and pagination
+// @Summary Get kills with filters
+// @Description Fetch kills from the database, optionally filtered by character_id, region, and date range with pagination
 // @Tags kills
 // @Accept json
 // @Produce json
 // @Param character_id query int false "Filter by character ID"
+// @Param region_id query int false "Filter by region ID"
 // @Param start_date query string false "Start date (YYYY-MM-DD)"
 // @Param end_date query string false "End date (YYYY-MM-DD)"
-// @Success 200 {array} models.Kill
+// @Param page query int false "Page number (default: 1)"
+// @Param page_size query int false "Page size (default: 100, max: 1000)"
+// @Success 200 {object} map[string]interface{} "Returns kills array, total count, page, and page_size"
 // @Failure 500 {object} models.ErrorResponse
 // @Router /kills [get]
 func GetAllKills(c *gin.Context) {
 	// Get optional query parameters
 	characterIDStr := c.Query("character_id")
+	regionIDStr := c.Query("region_id")
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
 
-	// Build query with filters
-	query := db.DB.Preload("ZkillData")
+	// Parse pagination parameters
+	page := 1
+	if pageParam := c.Query("page"); pageParam != "" {
+		if p, err := strconv.Atoi(pageParam); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	pageSize := 100
+	if pageSizeParam := c.Query("page_size"); pageSizeParam != "" {
+		if ps, err := strconv.Atoi(pageSizeParam); err == nil && ps > 0 {
+			pageSize = ps
+			// Cap at 1000 to prevent excessive memory usage
+			if pageSize > 1000 {
+				pageSize = 1000
+			}
+		}
+	}
+
+	// Build base query
+	baseQuery := db.DB.Model(&models.Kill{})
 
 	if characterIDStr != "" {
 		characterID, err := strconv.ParseInt(characterIDStr, 10, 64)
 		if err == nil {
-			query = query.Where("character_id = ?", characterID)
+			baseQuery = baseQuery.Where("character_id = ?", characterID)
+		}
+	}
+
+	if regionIDStr != "" {
+		regionID, err := strconv.Atoi(regionIDStr)
+		if err == nil {
+			// Join with systems table to filter by region
+			baseQuery = baseQuery.Joins("JOIN systems ON kills.solar_system_id = systems.system_id").
+				Where("systems.region_id = ?", regionID)
 		}
 	}
 
 	if startDate != "" && endDate != "" {
-		query = query.Where("killmail_time BETWEEN ? AND ?", startDate, endDate)
+		baseQuery = baseQuery.Where("killmail_time BETWEEN ? AND ?", startDate, endDate)
 	}
 
+	// Get total count
+	var totalCount int64
+	if err := baseQuery.Count(&totalCount).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Fetch paginated results
 	var kills []models.Kill
+	offset := (page - 1) * pageSize
+	query := baseQuery.Preload("ZkillData").
+		Order("killmail_time DESC").
+		Limit(pageSize).
+		Offset(offset)
+
 	if err := query.Find(&kills).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, kills)
+	// Return paginated response with metadata
+	response := gin.H{
+		"kills":       kills,
+		"total_count": totalCount,
+		"page":        page,
+		"page_size":   pageSize,
+		"total_pages": (totalCount + int64(pageSize) - 1) / int64(pageSize),
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // GetAllCharacterStats retrieves stats for all characters with filters
 // @Summary Get all character stats
-// @Description Fetch stats for all characters from the database with optional filters
+// @Description Fetch stats for all characters from the database with optional filters. Returns aggregated kill counts and ISK destroyed per character.
 // @Tags characters
 // @Accept json
 // @Produce json
-// @Param regionID query []int false "Region IDs"
+// @Param regionID query []int false "Region IDs (can specify multiple: ?regionID=10000001&regionID=10000002)"
 // @Param startDate query string false "Start date (YYYY-MM-DD)"
 // @Param endDate query string false "End date (YYYY-MM-DD)"
 // @Success 200 {array} models.CharacterStats
@@ -107,21 +162,203 @@ func GetAllCharacterStats(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start date format"})
 			return
 		}
+	} else {
+		// Default to 30 days ago if not specified
+		startTime = time.Now().AddDate(0, 0, -30)
 	}
+
 	if endDate != "" {
 		endTime, err = time.Parse("2006-01-02", endDate)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end date format"})
 			return
 		}
+	} else {
+		// Default to today if not specified
+		endTime = time.Now()
 	}
 
+	// Get stats from optimized query
 	stats, err := queries.GetCharacterStats(startTime, endTime, 0, regionIDInts...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, stats)
+
+	// Enrich with character names
+	characters, err := queries.GetAllCharacters()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Create a map for quick character name lookup
+	charMap := make(map[int64]string)
+	for _, char := range characters {
+		charMap[char.ID] = char.Name
+	}
+
+	// Add names to stats
+	type EnrichedCharacterStats struct {
+		CharacterID int64   `json:"character_id"`
+		Name        string  `json:"name"`
+		KillCount   int     `json:"kill_count"`
+		TotalISK    float64 `json:"total_isk"`
+	}
+
+	enrichedStats := make([]EnrichedCharacterStats, 0, len(stats))
+	for _, stat := range stats {
+		enrichedStats = append(enrichedStats, EnrichedCharacterStats{
+			CharacterID: stat.CharacterID,
+			Name:        charMap[stat.CharacterID],
+			KillCount:   stat.KillCount,
+			TotalISK:    stat.TotalISK,
+		})
+	}
+
+	c.JSON(http.StatusOK, enrichedStats)
+}
+
+// GetCharacterAnalytics retrieves aggregated analytics for a specific character
+// @Summary Get character analytics
+// @Description Fetch aggregated analytics data for a character (hourly activity, daily stats, top systems)
+// @Tags characters
+// @Accept json
+// @Produce json
+// @Param id path int true "Character ID"
+// @Param startDate query string false "Start date (YYYY-MM-DD)"
+// @Param endDate query string false "End date (YYYY-MM-DD)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /characters/{id}/analytics [get]
+func GetCharacterAnalytics(c *gin.Context) {
+	characterID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid character ID"})
+		return
+	}
+
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+
+	// Build query for character's kills
+	query := db.DB.Model(&models.Kill{}).
+		Preload("ZkillData").
+		Where("character_id = ?", characterID)
+
+	if startDate != "" && endDate != "" {
+		query = query.Where("killmail_time BETWEEN ? AND ?", startDate, endDate)
+	}
+
+	var kills []models.Kill
+	if err := query.Find(&kills).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Aggregate analytics data
+	type HourlyActivity struct {
+		Hour  int `json:"hour"`
+		Kills int `json:"kills"`
+	}
+
+	type DailyActivity struct {
+		Date  string  `json:"date"`
+		Kills int     `json:"kills"`
+		ISK   float64 `json:"isk"`
+	}
+
+	type SystemActivity struct {
+		SystemID   int     `json:"system_id"`
+		SystemName string  `json:"system_name"`
+		Kills      int     `json:"kills"`
+		ISK        float64 `json:"isk"`
+	}
+
+	hourlyMap := make(map[int]int)
+	dailyMap := make(map[string]*DailyActivity)
+	systemMap := make(map[int]*SystemActivity)
+
+	var totalKills int
+	var totalISK float64
+	var totalPoints int
+
+	for _, kill := range kills {
+		totalKills++
+		totalISK += kill.ZkillData.TotalValue
+		totalPoints += kill.ZkillData.Points
+
+		// Hourly activity
+		hour := kill.KillmailTime.Hour()
+		hourlyMap[hour]++
+
+		// Daily activity
+		date := kill.KillmailTime.Format("2006-01-02")
+		if _, exists := dailyMap[date]; !exists {
+			dailyMap[date] = &DailyActivity{Date: date, Kills: 0, ISK: 0}
+		}
+		dailyMap[date].Kills++
+		dailyMap[date].ISK += kill.ZkillData.TotalValue
+
+		// System activity
+		if _, exists := systemMap[kill.SolarSystemID]; !exists {
+			systemMap[kill.SolarSystemID] = &SystemActivity{
+				SystemID: kill.SolarSystemID,
+				Kills:    0,
+				ISK:      0,
+			}
+		}
+		systemMap[kill.SolarSystemID].Kills++
+		systemMap[kill.SolarSystemID].ISK += kill.ZkillData.TotalValue
+	}
+
+	// Convert maps to arrays
+	hourlyActivity := make([]HourlyActivity, 0, len(hourlyMap))
+	for hour, kills := range hourlyMap {
+		hourlyActivity = append(hourlyActivity, HourlyActivity{Hour: hour, Kills: kills})
+	}
+
+	dailyActivity := make([]DailyActivity, 0, len(dailyMap))
+	for _, activity := range dailyMap {
+		dailyActivity = append(dailyActivity, *activity)
+	}
+
+	systemActivity := make([]SystemActivity, 0, len(systemMap))
+	for _, activity := range systemMap {
+		systemActivity = append(systemActivity, *activity)
+	}
+
+	// Get system names
+	if len(systemActivity) > 0 {
+		systemIDs := make([]int, 0, len(systemActivity))
+		for _, sys := range systemActivity {
+			systemIDs = append(systemIDs, sys.SystemID)
+		}
+
+		var systems []models.System
+		db.DB.Where("system_id IN ?", systemIDs).Find(&systems)
+
+		systemNameMap := make(map[int]string)
+		for _, sys := range systems {
+			systemNameMap[sys.SystemID] = sys.Name
+		}
+
+		for i := range systemActivity {
+			systemActivity[i].SystemName = systemNameMap[systemActivity[i].SystemID]
+		}
+	}
+
+	response := gin.H{
+		"total_kills":     totalKills,
+		"total_isk":       totalISK,
+		"total_points":    totalPoints,
+		"hourly_activity": hourlyActivity,
+		"daily_activity":  dailyActivity,
+		"system_activity": systemActivity,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // SearchCharacters searches for characters by name using EVE ESI API

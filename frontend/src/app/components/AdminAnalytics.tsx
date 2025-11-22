@@ -6,12 +6,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
-import { Character, Kill, System } from '@/lib/types'
+import { Character } from '@/lib/types'
 import { Trophy, Target, TrendingUp } from 'lucide-react'
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF6B9D']
 
 type DateRange = 'today' | '7days' | 'month' | 'year' | 'all'
+
+interface AnalyticsData {
+  total_kills: number
+  total_isk: number
+  total_points: number
+  hourly_activity: Array<{ hour: number; kills: number }>
+  daily_activity: Array<{ date: string; kills: number; isk: number }>
+  system_activity: Array<{ system_id: number; system_name: string; kills: number; isk: number }>
+}
 
 const fetchCharacters = async (): Promise<Character[]> => {
   const response = await fetch('/api/characters')
@@ -19,15 +28,14 @@ const fetchCharacters = async (): Promise<Character[]> => {
   return response.json()
 }
 
-const fetchAllKills = async (): Promise<Kill[]> => {
-  const response = await fetch('/api/kills')
-  if (!response.ok) throw new Error('Failed to fetch kills')
-  return response.json()
-}
+const fetchCharacterAnalytics = async (characterId: number, startDate?: string, endDate?: string): Promise<AnalyticsData> => {
+  const params = new URLSearchParams()
+  if (startDate) params.append('startDate', startDate)
+  if (endDate) params.append('endDate', endDate)
 
-const fetchSystems = async (): Promise<System[]> => {
-  const response = await fetch('/api/systems')
-  if (!response.ok) throw new Error('Failed to fetch systems')
+  const url = `/api/characters/${characterId}/analytics${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url)
+  if (!response.ok) throw new Error('Failed to fetch analytics')
   return response.json()
 }
 
@@ -61,8 +69,6 @@ export function AdminAnalytics() {
   const [dateRange, setDateRange] = useState<DateRange>('7days')
 
   const { data: characters, isLoading: isLoadingChars } = useQuery('characters', fetchCharacters)
-  const { data: allKills, isLoading: isLoadingKills } = useQuery('kills', fetchAllKills)
-  const { data: systems, isLoading: isLoadingSystems } = useQuery('systems', fetchSystems)
 
   // Auto-select first character
   useEffect(() => {
@@ -71,28 +77,19 @@ export function AdminAnalytics() {
     }
   }, [characters, selectedCharacterId])
 
-  // Create system lookup map
-  const systemsMap = useMemo(() => {
-    if (!systems) return new Map<number, string>()
-    return new Map(systems.map(s => [s.system_id, s.name]))
-  }, [systems])
+  // Fetch analytics for selected character and date range
+  const { start, end } = useMemo(() => getDateRangeFilter(dateRange), [dateRange])
+  const startDate = start.toISOString().split('T')[0]
+  const endDate = end.toISOString().split('T')[0]
 
-  // Filter kills by date range and character
-  const filteredKills = useMemo(() => {
-    if (!allKills || !selectedCharacterId) return []
-
-    const { start, end } = getDateRangeFilter(dateRange)
-
-    return allKills.filter(kill => {
-      const killDate = new Date(kill.KillmailTime)
-      return kill.CharacterID === selectedCharacterId &&
-             killDate >= start &&
-             killDate <= end
-    })
-  }, [allKills, selectedCharacterId, dateRange])
+  const { data: analyticsData, isLoading: isLoadingAnalytics } = useQuery(
+    ['characterAnalytics', selectedCharacterId, startDate, endDate],
+    () => selectedCharacterId ? fetchCharacterAnalytics(selectedCharacterId, startDate, endDate) : Promise.resolve(null),
+    { enabled: !!selectedCharacterId }
+  )
 
   const analytics = useMemo(() => {
-    if (filteredKills.length === 0) {
+    if (!analyticsData) {
       return {
         totalKills: 0,
         totalISK: 0,
@@ -104,74 +101,39 @@ export function AdminAnalytics() {
       }
     }
 
-    const systemActivityMap = new Map<number, { kills: number; isk: number; name: string }>()
-    const hourMap = new Map<number, number>()
-    const dailyMap = new Map<string, { kills: number; isk: number }>()
-
-    let totalISK = 0
-    let totalPoints = 0
-
-    filteredKills.forEach(kill => {
-      totalISK += kill.ZkillData.TotalValue
-      totalPoints += kill.ZkillData.Points
-
-      // System activity with proper names
-      const systemName = systemsMap.get(kill.SolarSystemID) || `Unknown System (${kill.SolarSystemID})`
-      if (!systemActivityMap.has(kill.SolarSystemID)) {
-        systemActivityMap.set(kill.SolarSystemID, { kills: 0, isk: 0, name: systemName })
-      }
-      const systemData = systemActivityMap.get(kill.SolarSystemID)!
-      systemData.kills++
-      systemData.isk += kill.ZkillData.TotalValue
-
-      // Hourly activity
-      const hour = new Date(kill.KillmailTime).getHours()
-      hourMap.set(hour, (hourMap.get(hour) || 0) + 1)
-
-      // Daily activity
-      const date = kill.KillmailTime.split('T')[0]
-      if (!dailyMap.has(date)) {
-        dailyMap.set(date, { kills: 0, isk: 0 })
-      }
-      const dailyData = dailyMap.get(date)!
-      dailyData.kills++
-      dailyData.isk += kill.ZkillData.TotalValue
-    })
-
-    // Convert to arrays and sort
-    const regionActivity = Array.from(systemActivityMap.entries())
-      .map(([, data]) => ({ region: data.name, kills: data.kills, isk: data.isk }))
+    // Transform backend data to component format
+    const regionActivity = analyticsData.system_activity
+      .map(s => ({ region: s.system_name, kills: s.kills, isk: s.isk }))
       .sort((a, b) => b.kills - a.kills)
       .slice(0, 10)
 
-    const topSystems = Array.from(systemActivityMap.entries())
-      .map(([, data]) => ({ system: data.name, kills: data.kills }))
+    const topSystems = analyticsData.system_activity
+      .map(s => ({ system: s.system_name, kills: s.kills }))
       .sort((a, b) => b.kills - a.kills)
       .slice(0, 10)
 
-    const hourlyActivity = Array.from(hourMap.entries())
-      .map(([hour, kills]) => ({ hour: `${hour}:00`, kills }))
+    const hourlyActivity = analyticsData.hourly_activity
+      .map(h => ({ hour: `${h.hour}:00`, kills: h.kills }))
       .sort((a, b) => parseInt(a.hour) - parseInt(b.hour))
 
-    const dailyActivity = Array.from(dailyMap.entries())
-      .map(([date, data]) => ({ date, ...data }))
+    const dailyActivity = analyticsData.daily_activity
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(-30) // Last 30 days
 
     return {
-      totalKills: filteredKills.length,
-      totalISK,
-      totalPoints,
+      totalKills: analyticsData.total_kills,
+      totalISK: analyticsData.total_isk,
+      totalPoints: analyticsData.total_points,
       regionActivity,
       hourlyActivity,
       dailyActivity,
       topSystems
     }
-  }, [filteredKills, systemsMap])
+  }, [analyticsData])
 
   const selectedCharacter = characters?.find(c => c.id === selectedCharacterId)
 
-  if (isLoadingChars || isLoadingKills || isLoadingSystems) {
+  if (isLoadingChars || isLoadingAnalytics) {
     return (
       <div className="space-y-6">
         <Skeleton className="w-full h-[200px]" />

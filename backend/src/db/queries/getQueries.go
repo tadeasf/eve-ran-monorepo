@@ -83,12 +83,14 @@ func GetTotalKillsForCharacter(characterID int64) (int64, error) {
 
 func GetCharacterStats(startTime, endTime time.Time, systemID int64, regionIDs ...int64) ([]models.CharacterStats, error) {
 	query := db.DB.Table("kills").
-		Select("character_id, COUNT(*) as kill_count, SUM(total_value) as total_isk").
-		Where("kill_time BETWEEN ? AND ?", startTime, endTime).
-		Group("character_id")
+		Select("kills.character_id, COUNT(*) as kill_count, COALESCE(SUM(zkills.total_value), 0) as total_isk").
+		Joins("LEFT JOIN zkills ON kills.killmail_id = zkills.killmail_id").
+		Where("kills.killmail_time BETWEEN ? AND ?", startTime, endTime).
+		Where("kills.character_id != 0").
+		Group("kills.character_id")
 
 	if systemID != 0 {
-		query = query.Where("solar_system_id = ?", systemID)
+		query = query.Where("kills.solar_system_id = ?", systemID)
 	}
 
 	if len(regionIDs) > 0 {
