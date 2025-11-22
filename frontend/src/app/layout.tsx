@@ -8,7 +8,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next"
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Tundragon Corporation',
+  title: process.env.NEXT_PUBLIC_CORPORATION_NAME || 'Tundragon Corp',
   description: 'EVE Online Intelligence Hub - Character Management & Analytics',
   icons: {
     icon: '/public/icon.png',

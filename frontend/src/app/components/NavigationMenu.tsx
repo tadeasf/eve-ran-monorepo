@@ -13,16 +13,18 @@ import {
   navigationMenuTriggerStyle,
 } from "@/app/components/ui/navigation-menu"
 import { ModeToggle } from "./ModeToggle"
+import { useAppConfig } from "../contexts/AppConfigContext"
 
 export function MainNav() {
+  const { config } = useAppConfig()
+
   return (
     <div className="flex w-full items-center justify-between py-4">
       {/* Logo Section */}
       <Link href="/" className="flex items-center space-x-2">
         <Shield className="size-8 text-primary" />
         <div className="flex flex-col">
-          <span className="text-xl font-bold tracking-tight">Tundragon</span>
-          <span className="text-sm text-muted-foreground">Corporation</span>
+          <span className="text-xl font-bold tracking-tight">{config.corporation_name}</span>
         </div>
       </Link>
 
