@@ -87,6 +87,7 @@ func main() {
 
 	// New routes
 	r.GET("/characters/:id/killmails", routes.GetCharacterKillmails)
+	r.GET("/characters/:id/analytics", cacheMiddleware, routes.GetCharacterAnalytics)
 	r.GET("/characters/stats", routes.GetAllCharacterStats)
 
 	// New data routes (cached)

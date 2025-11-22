@@ -1,5 +1,7 @@
 // EVE ESI API integration for character search and data fetching
 
+import type { Kill } from '../../lib/types'
+
 // Use Next.js API routes to avoid CORS issues
 const API_BASE_URL = '/api'
 const ESI_BASE_URL = process.env.NEXT_PUBLIC_EVE_ESI_BASE_URL || 'https://esi.evetech.net/latest'
@@ -250,6 +252,122 @@ export async function getAllCharacters(): Promise<BackendCharacterInfo[]> {
         return await response.json()
     } catch (error) {
         console.error('Error fetching all characters:', error)
+        throw error
+    }
+}
+
+/**
+ * Get character stats with filters (optimized for dashboard)
+ */
+export interface CharacterStatsResponse {
+    character_id: number;
+    name: string;
+    kill_count: number;
+    total_isk: number;
+}
+
+export async function getCharacterStats(params: {
+    regionIDs?: number[];
+    startDate?: string;
+    endDate?: string;
+}): Promise<CharacterStatsResponse[]> {
+    try {
+        const queryParams = new URLSearchParams();
+
+        if (params.regionIDs && params.regionIDs.length > 0) {
+            params.regionIDs.forEach(id => queryParams.append('regionID', id.toString()));
+        }
+
+        if (params.startDate) {
+            queryParams.append('startDate', params.startDate);
+        }
+
+        if (params.endDate) {
+            queryParams.append('endDate', params.endDate);
+        }
+
+        const response = await fetch(
+            `${API_BASE_URL}/characters/stats?${queryParams.toString()}`,
+            {
+                headers: {
+                    'Accept': 'application/json',
+                }
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error(`Backend API error: ${response.status} ${response.statusText}`)
+        }
+
+        return await response.json()
+    } catch (error) {
+        console.error('Error fetching character stats:', error)
+        throw error
+    }
+}
+
+/**
+ * Get kills with filters and pagination
+ */
+export interface KillsResponse {
+    kills: Kill[];
+    total_count: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+}
+
+export async function getKills(params: {
+    characterId?: number;
+    regionId?: number;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    pageSize?: number;
+}): Promise<KillsResponse> {
+    try {
+        const queryParams = new URLSearchParams();
+
+        if (params.characterId) {
+            queryParams.append('character_id', params.characterId.toString());
+        }
+
+        if (params.regionId) {
+            queryParams.append('region_id', params.regionId.toString());
+        }
+
+        if (params.startDate) {
+            queryParams.append('start_date', params.startDate);
+        }
+
+        if (params.endDate) {
+            queryParams.append('end_date', params.endDate);
+        }
+
+        if (params.page) {
+            queryParams.append('page', params.page.toString());
+        }
+
+        if (params.pageSize) {
+            queryParams.append('page_size', params.pageSize.toString());
+        }
+
+        const response = await fetch(
+            `${API_BASE_URL}/kills?${queryParams.toString()}`,
+            {
+                headers: {
+                    'Accept': 'application/json',
+                }
+            }
+        )
+
+        if (!response.ok) {
+            throw new Error(`Backend API error: ${response.status} ${response.statusText}`)
+        }
+
+        return await response.json()
+    } catch (error) {
+        console.error('Error fetching kills:', error)
         throw error
     }
 }
