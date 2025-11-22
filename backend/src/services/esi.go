@@ -29,47 +29,94 @@ var (
 
 // makeESIRequest is a helper function that makes ESI requests with proper rate limiting and header handling
 func makeESIRequest(url string, method string) (*http.Response, error) {
-	// Check if we can make a request
-	if !esiManager.CanMakeRequest() {
-		log.Printf("ESI rate limit reached, waiting for reset...")
-		esiManager.WaitForReset()
-	}
+	return makeESIRequestWithRetry(url, method, 3)
+}
 
-	req, err := http.NewRequest(method, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
-
-	// Set required headers as per ESI guidelines
-	req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran - Contact: github.com/tadeasf")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := esiClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error making request: %v", err)
-	}
-
-	// Update rate limiting information from response headers
-	esiManager.UpdateLimitsFromHeaders(resp.Header)
-
-	// Log rate limit status only if it's low (for debugging)
-	remaining, resetTime := esiManager.GetStatus()
-	if remaining < 20 {
-		log.Printf("ESI Rate Limit LOW - Remaining: %d, Reset: %s", remaining, resetTime.Format(time.RFC3339))
-	}
-
-	// Handle error responses
-	if resp.StatusCode >= 400 {
-		// Decrement error count on client or server errors
-		esiManager.DecrementErrorCount()
-
-		if resp.StatusCode == 420 || resp.StatusCode == 520 {
-			// These are rate limit errors
-			return resp, fmt.Errorf("ESI rate limit exceeded: %d", resp.StatusCode)
+// makeESIRequestWithRetry makes ESI requests with retry logic for 429 errors
+func makeESIRequestWithRetry(url string, method string, maxRetries int) (*http.Response, error) {
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			log.Printf("Retry attempt %d/%d for %s", attempt, maxRetries, url)
 		}
+
+		// Check if we can make a request
+		if !esiManager.CanMakeRequest() {
+			log.Printf("ESI rate limit reached, waiting for reset...")
+			esiManager.WaitForReset()
+		}
+
+		// Apply backoff if we're approaching limits
+		if shouldBackoff, backoffDuration := esiManager.ShouldBackoff(); shouldBackoff {
+			log.Printf("ESI rate limit approaching, backing off for %v", backoffDuration)
+			time.Sleep(backoffDuration)
+		}
+
+		req, err := http.NewRequest(method, url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("error creating request: %v", err)
+		}
+
+		// Set required headers as per ESI guidelines
+		req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran - Contact: github.com/tadeasf")
+		req.Header.Set("Accept", "application/json")
+		// Support caching with If-Modified-Since
+		req.Header.Set("Cache-Control", "no-cache")
+
+		resp, err := esiClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("error making request: %v", err)
+		}
+
+		// Always update rate limiting information from response headers
+		esiManager.UpdateLimitsFromHeaders(resp.Header)
+
+		// Handle 429 (rate limited)
+		if resp.StatusCode == 429 {
+			resp.Body.Close()
+			if attempt < maxRetries {
+				log.Printf("ESI returned 429 for %s, waiting before retry...", url)
+				esiManager.WaitForReset()
+				continue
+			}
+			return nil, fmt.Errorf("ESI returned 429 after %d retries", maxRetries)
+		}
+
+		// Handle 420 (old rate limit) and 520 (errors)
+		if resp.StatusCode == 420 || resp.StatusCode == 520 {
+			resp.Body.Close()
+			if attempt < maxRetries {
+				log.Printf("ESI returned %d, waiting before retry...", resp.StatusCode)
+				esiManager.WaitForReset()
+				continue
+			}
+			return nil, fmt.Errorf("ESI rate limit exceeded: %d after %d retries", resp.StatusCode, maxRetries)
+		}
+
+		// Log rate limit status if approaching limits
+		remaining, resetTime := esiManager.GetStatus()
+		if remaining < 20 {
+			log.Printf("ESI Error Limit LOW - Remaining: %d, Reset: %s", remaining, resetTime.Format(time.RFC3339))
+		}
+
+		// Decrement error count on 4xx client errors (but not 429)
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 && resp.StatusCode != 429 {
+			esiManager.DecrementErrorCount()
+		}
+
+		// 5xx errors don't cost tokens, but we might want to retry
+		if resp.StatusCode >= 500 && resp.StatusCode < 600 {
+			resp.Body.Close()
+			if attempt < maxRetries {
+				log.Printf("ESI returned %d (server error), retrying in 2s...", resp.StatusCode)
+				time.Sleep(2 * time.Second)
+				continue
+			}
+		}
+
+		return resp, nil
 	}
 
-	return resp, nil
+	return nil, fmt.Errorf("max retries exceeded")
 }
 
 func FetchRegionIDs() ([]int, error) {
@@ -458,24 +505,12 @@ func FetchAllSystems(concurrency int) ([]*models.System, error) {
 
 func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
 	url := fmt.Sprintf("%s/killmails/%d/%s/?datasource=tranquility", esiBaseURL, killmailID, hash)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
-	req.Header.Set("User-Agent", "EVE Ran Application - GitHub: tadeasf/eve-ran - Contact: github.com/tadeasf")
-	req.Header.Set("Accept", "application/json")
 
-	resp, err := esiClient.Do(req)
+	resp, err := makeESIRequest(url, "GET")
 	if err != nil {
-		if strings.Contains(err.Error(), "timeout") {
-			return nil, fmt.Errorf("ESI timeout: %v", err)
-		}
 		return nil, fmt.Errorf("error making request: %v", err)
 	}
 	defer resp.Body.Close()
-
-	// Update rate limiting information from response headers
-	esiManager.UpdateLimitsFromHeaders(resp.Header)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -483,7 +518,7 @@ func FetchKillmailFromESI(killmailID int64, hash string) (*models.Kill, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ESI returned non-OK status: %d, body: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("ESI returned status %d for killmail %d", resp.StatusCode, killmailID)
 	}
 
 	var esiKill struct {

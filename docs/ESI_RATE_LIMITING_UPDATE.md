@@ -1,52 +1,142 @@
-# EVE ESI Rate Limiting Implementation
+# EVE ESI Rate Limiting Implementation (Updated 2025-11-22)
 
 ## Overview
 
-Implementation of proper ESI (EVE Swagger Interface) rate limiting according to EVE Online API guidelines.
+Comprehensive update to support ESI's new floating window rate limiting with token-based bucket system, preventing 429 errors.
 
-## Implementation Details
+## Problem Addressed
+
+Application was receiving 429 errors:
+```
+ERROR: ESI returned status 429 for killmail 67876058
+```
+
+## ESI Rate Limiting System (November 2025)
+
+Per [ESI Documentation](https://developers.eveonline.com/docs/services/esi/rate-limiting/):
+
+### Floating Window Rate Limiting
+- **Token costs by status code:**
+  - 2XX: 2 tokens
+  - 3XX: 1 token (promotes If-Modified-Since)
+  - 4XX: 5 tokens (discourages errors)
+  - 5XX: 0 tokens (server errors)
+
+### New Rate Limit Headers
+- `X-Ratelimit-Group`: Route group identifier
+- `X-Ratelimit-Limit`: Total tokens per window (e.g., "150/15m")
+- `X-Ratelimit-Remaining`: Available tokens
+- `X-Ratelimit-Used`: Tokens consumed by request
+- `Retry-After`: Seconds to wait after 429
+
+### Legacy Error Limiting
+Still active on all routes:
+- Max 100 non-2xx/3xx per minute
+- Headers: `X-ESI-Error-Limit-Remain`, `X-ESI-Error-Limit-Reset`
+- Returns 420 when exceeded
+
+## Updated Implementation
 
 ### ESI Error Manager (`backend/src/services/esiErrorManager.go`)
 
-**Core Features:**
-- Global singleton pattern with `GetGlobalESIManager()`
-- Thread-safe rate limit tracking with mutex
-- Tracks `X-ESI-Error-Limit-Remain` and `X-ESI-Error-Limit-Reset` headers
-- Default: 100 errors remaining, updates from ESI responses
-- `UpdateLimitsFromHeaders()`: Parses rate limit headers
-- `CanMakeRequest()`: Checks if safe to make request
-- `GetStatus()`: Returns current rate limit state for monitoring
+**New Structures:**
+```go
+type ESIRateLimitInfo struct {
+    group         string    // Route group
+    limit         int       // Total tokens per window
+    remaining     int       // Available tokens
+    used          int       // Tokens used by last request
+    windowSize    string    // e.g., "15m", "1h"
+    retryAfter    time.Time // When to retry after 429
+}
+```
+
+**Enhanced Features:**
+- **Per-group tracking:** Separate limits for each route group
+- **Token-based accounting:** Monitors tokens used/remaining
+- **Dual limit tracking:** New rate limiting + legacy error limiting
+- **Intelligent backoff:** Progressive slowdown as limits approach
+  - Error limit < 20: 500ms delay
+  - Route group < 10% remaining: 1 second delay
+  - Route group < 30% remaining: 300ms delay
+
+**Key Methods:**
+- `UpdateLimitsFromHeaders()`: Parses ALL rate limit headers (new + legacy)
+- `CanMakeRequest()`: Checks both systems, maintains safety buffers
+- `ShouldBackoff()`: Returns whether to slow down and by how much
+- `WaitForReset()`: Waits until rate limits reset with buffer
+- `GetRateLimitInfo(group)`: Gets info for specific route group
+- `LogStatus()`: Comprehensive logging of all limits
 
 ### ESI Service (`backend/src/services/esi.go`)
 
-**Centralized Request Handling:**
-- `makeESIRequest(url, method)`: All ESI requests go through this helper
-- Checks rate limit before each request
-- Auto-waits when limit reached
-- User-Agent: `EVE Ran Application - GitHub: tadeasf/eve-ran - Contact: github.com/tadeasf`
-- Parses rate limit headers from responses
-- Handles 420/520 status codes (rate limit errors)
+**New Function: `makeESIRequestWithRetry()`**
+- **Automatic retries:** Up to 3 attempts for 429, 420, 5xx errors
+- **Respect Retry-After:** Waits exactly as ESI instructs
+- **Intelligent backoff:** Applies before requests when approaching limits
+- **Better error handling:** Proper categorization and logging
 
-**Functions Updated:**
-- Universe: `FetchRegionIDs/Info`, `FetchSystemIDs/Info`, `FetchConstellationIDs/Info`
-- Items: `FetchItemIDs/Info` (with pagination)
-- Characters: `FetchCharacterInfo`, `SearchCharactersByName`
-- Killmails: `FetchKillmailFromESI`
+**Enhanced Request Flow:**
+```
+1. Check CanMakeRequest() - verifies safety
+2. Apply ShouldBackoff() - slows if approaching limits
+3. Make request with proper headers
+4. Update all rate limit info from response
+5. Handle 429/420/5xx with retry + wait
+6. Return response or fail after max retries
+```
 
-## Request Flow
+**Request Headers:**
+```go
+User-Agent: EVE Ran Application - GitHub: tadeasf/eve-ran - Contact: github.com/tadeasf
+Accept: application/json
+Cache-Control: no-cache
+```
 
-1. **Pre-Request:** `CanMakeRequest()` checks rate limit, waits if needed
-2. **Request:** Execute with proper User-Agent header
-3. **Post-Request:** Parse `X-ESI-Error-Limit-*` headers, update manager
-4. **Error Handling:** Decrement error count for 4xx/5xx, handle rate limit codes
+### Kill Enhancement (`backend/src/jobs/killEnhance.go`)
 
-## Benefits
+**Before:**
+```go
+resp, err := http.Get(url)  // Direct call, no rate limiting
+```
 
-- **Proactive Prevention:** Checks before requests, prevents hitting limits
-- **Automatic Recovery:** Waits for reset when limit reached
-- **ESI Compliant:** Proper headers and User-Agent
-- **Centralized & Thread-Safe:** Single source of truth for rate limits
-- **Observable:** Logs rate limit status for monitoring
+**After:**
+```go
+kill, err := services.FetchKillmailFromESI(zkill.KillmailID, zkill.Hash)
+// Centralized rate-limited service with retries
+```
+
+**Benefits:**
+- Automatic rate limiting
+- Built-in retry logic
+- Consistent error handling
+- Comprehensive logging
+
+## Best Practices Implemented
+
+Per [ESI Best Practices](https://developers.eveonline.com/docs/services/esi/rate-limiting/#best-practices):
+
+✅ **Don't operate at the limit** - Buffers: 5 errors, 10% tokens  
+✅ **Slow down when approaching** - Progressive backoff system  
+✅ **Spread requests over time** - No bursting, intelligent delays  
+✅ **Respect Retry-After** - Wait exactly as instructed on 429s  
+✅ **Use proper User-Agent** - Identifies our application  
+✅ **Respect cache times** - Cache-Control headers included
+
+## Monitoring & Logging
+
+System logs when:
+- Error limit drops below 20
+- Any route group drops below 30%
+- 429 errors occur (with retry timing)
+- Rate limit resets
+
+**Example output:**
+```
+ESI Rate Limit Status - Error Remaining: 85, Reset: 2025-11-22T03:45:00Z
+  Group killmails: 142/150 tokens remaining (15m window)
+ESI Rate Limited: Retry after 15 seconds (at 2025-11-22T03:35:28Z)
+```
 
 ## Production Recommendations
 
